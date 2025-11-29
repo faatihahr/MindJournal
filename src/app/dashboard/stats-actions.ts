@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 
-export async function getUserEntries() {
+export async function getMoodStats() {
   try {
     const supabase = await createClient();
     
@@ -13,29 +13,30 @@ export async function getUserEntries() {
       return { error: 'No authenticated user found' };
     }
     
-    // Fetch entries with server-side context
+    // Fetch moods data for the user
     const { data, error } = await supabase
-      .from('entries')
-      .select(`
-        *,
-        categories (
-          name,
-          color
-        )
-      `)
+      .from('moods')
+      .select('intensity, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     
-    console.log('Fetched entries data:', data);
-    
     if (error) {
       console.error('Database error:', error);
-      return { error: 'Failed to fetch entries' };
+      return { error: 'Failed to fetch mood stats' };
     }
     
-    return { data: data || [] };
+    // Calculate average intensity
+    const moods = data || [];
+    const averageIntensity = moods.length > 0 
+      ? moods.reduce((sum, mood) => sum + mood.intensity, 0) / moods.length 
+      : 0;
+    
+    return { 
+      averageIntensity: Math.round(averageIntensity * 10) / 10, // Round to 1 decimal
+      totalMoods: moods.length
+    };
   } catch (error) {
     console.error('Server error:', error);
-    return { error: 'Failed to fetch entries' };
+    return { error: 'Failed to fetch mood stats' };
   }
 }

@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { getUserEntries } from './actions';
+import { getMoodStats } from './stats-actions';
 import { DeleteButton } from './delete-button';
 import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown } from 'react-icons/fi';
 
 type JournalEntry = {
   id: string;
+  title?: string;
   content: string;
   mood?: string;
-  category?: string;
-  category_id?: string;
   categories?: {
     name: string;
     color: string;
   };
+  category_id?: string;
   tags?: string[];
   created_at: string;
   updated_at: string;
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [moodStats, setMoodStats] = useState<{ averageIntensity: number; totalMoods: number } | null>(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -60,6 +62,15 @@ export default function Dashboard() {
         setError(result.error);
       } else {
         setEntries(result.data as JournalEntry[]);
+      }
+      
+      // Fetch mood stats
+      const moodResult = await getMoodStats();
+      if (!moodResult.error && moodResult.averageIntensity !== undefined) {
+        setMoodStats({
+          averageIntensity: moodResult.averageIntensity,
+          totalMoods: moodResult.totalMoods || 0
+        });
       }
     } catch (error: any) {
       setError(error.message || 'Failed to fetch entries');
@@ -116,6 +127,80 @@ export default function Dashboard() {
     entry.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     entry.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+  
+  // Calculate statistics from actual data
+  const calculateStats = () => {
+    const now = new Date();
+    
+    // Fix week calculation - start from Monday, end on Sunday
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ...
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday
+    weekStart.setHours(0, 0, 0, 0);
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6); // Sunday
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    console.log('Current date:', now);
+    console.log('Week start:', weekStart);
+    console.log('Week end:', weekEnd);
+    
+    // Entries this week
+    const entriesThisWeek = entries.filter(entry => {
+      const entryDate = new Date(entry.created_at);
+      console.log(`Entry ${entry.id}: ${entryDate} - in week: ${entryDate >= weekStart && entryDate <= weekEnd}`);
+      return entryDate >= weekStart && entryDate <= weekEnd;
+    });
+    
+    console.log('Entries this week count:', entriesThisWeek.length);
+    
+    // Calculate mood average from moods data
+    const moodEmojis = entries.map(entry => entry.mood).filter((mood): mood is string => mood !== undefined);
+    const moodCounts = moodEmojis.reduce((acc, mood) => {
+      acc[mood] = (acc[mood] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Get mood intensity from database
+    const averageIntensity = moodStats?.averageIntensity || 0;
+    
+    return {
+      entriesThisWeek: entriesThisWeek.length,
+      moodAverage: averageIntensity,
+      currentStreak: calculateCurrentStreak()
+    };
+  };
+  
+  const calculateCurrentStreak = () => {
+    if (entries.length === 0) return 0;
+    
+    const sortedEntries = [...entries].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    let streak = 0;
+    let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    
+    for (const entry of sortedEntries) {
+      const entryDate = new Date(entry.created_at);
+      entryDate.setHours(0, 0, 0, 0);
+      
+      const dayDiff = Math.floor((currentDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (dayDiff <= streak) {
+        streak++;
+        currentDate = new Date(entryDate);
+      } else {
+        break;
+      }
+    }
+    
+    return streak;
+  };
+  
+  const stats = calculateStats();
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
@@ -265,7 +350,7 @@ export default function Dashboard() {
               Total Entries
             </p>
             <p className={`text-xs mt-2 ${isDarkMode ? "text-green-400" : "text-green-600"}`}>
-              +12 this week
+              +{stats.entriesThisWeek} this week
             </p>
           </div>
 
@@ -284,7 +369,7 @@ export default function Dashboard() {
               <FiStar className={`text-xl ${isDarkMode ? "text-yellow-400" : "text-yellow-600"}`} />
             </div>
             <h3 className={`text-2xl font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-              15 days
+              {stats.currentStreak} days
             </h3>
             <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
               Current Streak
@@ -310,10 +395,13 @@ export default function Dashboard() {
               <FiHeart className={`text-xl ${isDarkMode ? "text-pink-400" : "text-pink-600"}`} />
             </div>
             <div className={`text-3xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-              8.5/10
+              {stats.moodAverage > 0 ? `${stats.moodAverage}/10` : 'No data'}
             </div>
             <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
-              Feeling great ❤️
+              {stats.moodAverage >= 8 ? 'Feeling great ❤️' : 
+               stats.moodAverage >= 6 ? 'Doing good 👍' :
+               stats.moodAverage >= 4 ? 'Feeling okay 😐' :
+               stats.moodAverage > 0 ? 'Need support 🤗' : 'No mood data'}
             </p>
           </div>
 
@@ -429,9 +517,9 @@ export default function Dashboard() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-3">
-                          <span className="text-2xl">🌙</span>
+                          <span className="text-2xl">{entry.mood || '😊'}</span>
                           <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                            Reflective Evening
+                            {entry.title || 'Untitled Entry'}
                           </h3>
                         </div>
                         <div className="flex items-center space-x-2 mb-3">
@@ -448,20 +536,46 @@ export default function Dashboard() {
                           {entry.content}
                         </p>
                         <div className="flex items-center space-x-2 mb-3">
-                          {entry.tags?.slice(0, 2).map((tag, index) => (
-                            <span key={index} className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              isDarkMode 
-                                ? "bg-purple-900/50 text-purple-300" 
-                                : "bg-purple-100 text-purple-700"
-                            }`}>
-                              #{tag}
-                            </span>
-                          ))}
+                          {/* Only show user tags if they exist */}
+                          {entry.tags && entry.tags.length > 0 && entry.tags.slice(0, 2).map((tag, index) => {
+                            const categoryColor = entry.categories?.color || '#6366f1';
+                            const categoryName = entry.categories?.name || 'Personal';
+                            
+                            // Debug logging
+                            console.log('Entry ID:', entry.id);
+                            console.log('Entry categories:', entry.categories);
+                            console.log('Category color:', categoryColor);
+                            console.log('Category name:', categoryName);
+                            console.log('Tag being rendered:', tag);
+                            
+                            // Create a unique style element for each tag
+                            const tagStyle = {
+                              backgroundColor: categoryColor,
+                              color: 'white',
+                              padding: '0.25rem 0.75rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '500',
+                              display: 'inline-block',
+                              border: 'none',
+                              outline: 'none'
+                            };
+                            
+                            return (
+                              <span 
+                                key={index}
+                                style={tagStyle}
+                                title={`Category: ${categoryName}`}
+                              >
+                                #{tag}
+                              </span>
+                            );
+                          })}
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm">✨</span>
                           <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                            Self-reflection enhances self-awareness
+                            {entry.categories?.name || 'Personal'}
                           </p>
                         </div>
                       </div>
