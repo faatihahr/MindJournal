@@ -5,6 +5,8 @@ import { getUserEntries } from './actions';
 import { getMoodStats } from './stats-actions';
 import { DeleteButton } from './delete-button';
 import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
+import { MoodCalendar } from '@/components/mood-calendar';
+import { DateEntriesModal } from '@/components/date-entries-modal';
 
 type JournalEntry = {
   id: string;
@@ -61,6 +63,10 @@ export default function Dashboard() {
   const [isSearching, setIsSearching] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [moodStats, setMoodStats] = useState<{ averageIntensity: number; totalMoods: number } | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDateEntries, setSelectedDateEntries] = useState<JournalEntry[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -697,15 +703,32 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Mood Calendar Section */}
+        {showCalendar && (
+          <div className="mb-8">
+            <MoodCalendar
+              entries={entries}
+              isDarkMode={isDarkMode}
+              onDateClick={(date, entriesForDate) => {
+                setSelectedDate(date);
+                setSelectedDateEntries(entriesForDate);
+                setIsModalOpen(true);
+              }}
+            />
+          </div>
+        )}
+
         {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <button className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
-            isDarkMode 
-              ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
-              : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
-          }`}>
+          <button 
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+            } ${showCalendar ? 'ring-2 ring-purple-500' : ''}`}>
             <FiCalendar className={`text-2xl mb-2 ${isDarkMode ? "text-purple-400" : "text-purple-600"}`} />
-            <p className="font-medium">View Calendar</p>
+            <p className="font-medium">{showCalendar ? 'Hide Calendar' : 'View Calendar'}</p>
           </button>
           <button className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
             isDarkMode 
@@ -894,6 +917,15 @@ export default function Dashboard() {
             <span>Write New Entry</span>
           </a>
         </div>
+
+        {/* Date Entries Modal */}
+        <DateEntriesModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          date={selectedDate || new Date()}
+          entries={selectedDateEntries}
+          isDarkMode={isDarkMode}
+        />
 
         {/* Quote Section */}
         <div className={`mt-16 p-8 rounded-2xl text-center ${
