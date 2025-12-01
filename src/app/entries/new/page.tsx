@@ -12,6 +12,8 @@ export default function NewEntry() {
   const [title, setTitle] = useState('');
   const [selectedMood, setSelectedMood] = useState('😊');
   const [moodIntensity, setMoodIntensity] = useState(5);
+  const [isMoodAuto, setIsMoodAuto] = useState(false);
+  const [isDetectingMood, setIsDetectingMood] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -84,7 +86,7 @@ export default function NewEntry() {
         setTranscript(prev => prev + finalTranscript);
         setContent(prev => prev + finalTranscript);
       };
-      
+
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setError(`Speech recognition error: ${event.error}`);
@@ -100,6 +102,41 @@ export default function NewEntry() {
       console.warn('Speech recognition not supported');
     }
   }, []);
+
+  const handleDetectMood = async () => {
+    if (!content.trim() || isDetectingMood) return;
+
+    setIsDetectingMood(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/ai/mood', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) throw new Error('Failed to detect mood');
+
+      const data = await response.json();
+
+      if (data?.emoji) {
+        setSelectedMood(data.emoji);
+        if (typeof data.intensity === 'number' && data.intensity >= 1 && data.intensity <= 10) {
+          setMoodIntensity(data.intensity);
+        }
+        setIsMoodAuto(true);
+      }
+    } catch (error) {
+      console.error('Error detecting mood:', error);
+      setError('Failed to detect mood automatically. You can still choose it manually.');
+    } finally {
+      setIsDetectingMood(false);
+    }
+  };
+
   const handleTidyUp = async () => {
     if (!content.trim()) return;
     
@@ -107,24 +144,48 @@ export default function NewEntry() {
     setError(null);
     
     try {
-      const response = await fetch('/api/ai/tidy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
+      // Run both tidy up and mood analysis in parallel
+      const [tidyResponse, moodResponse] = await Promise.all([
+        fetch('/api/ai/tidy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content }),
+        }),
+        fetch('/api/ai/mood', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content }),
+        })
+      ]);
       
-      if (!response.ok) throw new Error('Failed to tidy up text');
+      if (!tidyResponse.ok) throw new Error('Failed to tidy up text');
+      if (!moodResponse.ok) throw new Error('Failed to detect mood');
       
-      const { tidiedText } = await response.json();
+      const { tidiedText } = await tidyResponse.json();
+      const moodData = await moodResponse.json();
+      
+      // Set tidied text
       setAiResult(tidiedText);
       setEditedAiResult(tidiedText);
+      
+      // Set mood data
+      if (moodData?.emoji) {
+        setSelectedMood(moodData.emoji);
+        if (typeof moodData.intensity === 'number' && moodData.intensity >= 1 && moodData.intensity <= 10) {
+          setMoodIntensity(moodData.intensity);
+        }
+        setIsMoodAuto(true);
+      }
+      
       setShowAiResult(true);
       setIsEditingAiResult(false);
     } catch (error) {
-      console.error('Error tidying up text:', error);
-      setError('Failed to tidy up text. Please try again.');
+      console.error('Error processing with AI:', error);
+      setError('Failed to process with AI. Please try again.');
     } finally {
       setIsTidying(false);
     }
@@ -253,6 +314,25 @@ export default function NewEntry() {
     '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
     '#ec4899', '#14b8a6', '#f97316', '#84cc16', '#06b6d4'
   ];
+
+  const moodOptions = [
+    { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated' },
+    { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content' },
+    { mood: 'neutral', emoji: '😐', definition: 'Neutral: Feeling neither happy nor sad' },
+    { mood: 'sad', emoji: '☹️', definition: 'Sad: Feeling unhappy or sorrowful' },
+    { mood: 'very_sad', emoji: '😭', definition: 'Very Sad: Feeling extremely upset or devastated' },
+    { mood: 'excited', emoji: '🤩', definition: 'Excited: Feeling enthusiastic and eager' },
+    { mood: 'anxious', emoji: '😰', definition: 'Anxious: Feeling worried or nervous' },
+    { mood: 'angry', emoji: '😠', definition: 'Angry: Feeling annoyed or irritated' },
+    { mood: 'tired', emoji: '😴', definition: 'Tired: Feeling weary or exhausted' },
+    { mood: 'love', emoji: '🥰', definition: 'Love: Feeling deep affection and care' },
+    { mood: 'confused', emoji: '😕', definition: 'Confused: Feeling unclear or uncertain' },
+    { mood: 'grateful', emoji: '🙏', definition: 'Grateful: Feeling thankful and appreciative' },
+    { mood: 'hopeful', emoji: '🌟', definition: 'Hopeful: Feeling optimistic about the future' },
+    { mood: 'frustrated', emoji: '😤', definition: 'Frustrated: Feeling annoyed by difficulties' },
+    { mood: 'calm', emoji: '😌', definition: 'Calm: Feeling peaceful and relaxed' },
+    { mood: 'proud', emoji: '😎', definition: 'Proud: Feeling satisfied about achievements' },
+  ];
   
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
@@ -315,7 +395,7 @@ export default function NewEntry() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <button 
-                onClick={() => router.back()} 
+                onClick={() => window.location.href = '/dashboard'} 
                 className={`p-2 rounded-lg transition-all duration-200 ${
                   isDarkMode 
                     ? "bg-slate-800 text-gray-300 hover:bg-slate-700" 
@@ -498,70 +578,6 @@ export default function NewEntry() {
             ? "bg-slate-800/50 border-slate-700" 
             : "bg-white/70 border-gray-200"
         }`}>
-          {/* How are you feeling? */}
-          <div className="mb-8">
-            <label className={`block text-lg font-semibold mb-4 ${
-              isDarkMode ? "text-white" : "text-gray-900"
-            }`}>
-              How are you feeling?
-            </label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-              {[
-                { emoji: '😊', mood: 'happy', label: 'Happy' },
-                { emoji: '😢', mood: 'sad', label: 'Sad' },
-                { emoji: '😡', mood: 'angry', label: 'Angry' },
-                { emoji: '😴', mood: 'tired', label: 'Tired' },
-                { emoji: '🤗', mood: 'excited', label: 'Excited' },
-                { emoji: '😎', mood: 'confident', label: 'Confident' },
-                { emoji: '🤔', mood: 'thoughtful', label: 'Thoughtful' },
-                { emoji: '😰', mood: 'anxious', label: 'Anxious' }
-              ].map((item, index) => (
-                <button
-                  key={item.mood}
-                  onClick={() => setSelectedMood(item.emoji)}
-                  className={`p-3 sm:p-4 rounded-2xl border-2 transition-all duration-300 hover:scale-105 ${
-                    selectedMood === item.emoji 
-                      ? isDarkMode
-                        ? 'border-purple-500 bg-purple-900/50 shadow-lg'
-                        : 'border-purple-500 bg-purple-50 shadow-lg'
-                      : isDarkMode
-                        ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/50'
-                  }`}
-                  title={item.label}
-                >
-                  <span className="text-2xl sm:text-3xl">{item.emoji}</span>
-                </button>
-              ))}
-            </div>
-            <p className={`mt-3 text-sm ${
-              isDarkMode ? "text-gray-400" : "text-gray-600"
-            }`}>
-              Current mood: <span className="font-semibold">{selectedMood}</span>
-            </p>
-            
-            {/* Mood Intensity */}
-            <div className="mt-4">
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? "text-gray-300" : "text-gray-700"
-              }`}>
-                Mood Intensity: <span className="font-semibold">{moodIntensity}/10</span>
-              </label>
-              <div className="flex items-center space-x-3">
-                <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Low</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={moodIntensity}
-                  onChange={(e) => setMoodIntensity(Number(e.target.value))}
-                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                />
-                <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>High</span>
-              </div>
-            </div>
-          </div>
-
           {/* Title */}
           <div className="mb-8">
             <label htmlFor="title" className={`block text-lg font-semibold mb-3 ${
@@ -582,6 +598,290 @@ export default function NewEntry() {
               placeholder="Give your entry a title..."
             />
           </div>
+
+          {/* Content */}
+          <div className="mb-8">
+            <label htmlFor="content" className={`block text-lg font-semibold mb-3 ${
+              isDarkMode ? "text-white" : "text-gray-900"
+            }`}>
+              What's on your mind?
+            </label>
+            <div className="relative">
+              <textarea
+                id="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                  isDarkMode
+                    ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm"
+                    : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
+                }`}
+                placeholder="Share your thoughts, feelings, or experiences..."
+                rows={8}
+              />
+              <div className={`absolute bottom-3 right-3 text-sm ${
+                isNearLimit ? (isOverLimit ? "text-red-500" : "text-yellow-500") : 
+                isDarkMode ? "text-gray-400" : "text-gray-500"
+              }`}>
+                {charCount}/{MAX_CHARS}
+              </div>
+              {/* Voice Controls */}
+              <div className="absolute bottom-3 right-20 flex items-center space-x-2">
+                {/* Language Selector */}
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+                    isDarkMode
+                      ? "bg-slate-700/50 border-slate-600 text-white"
+                      : "bg-white/70 border-gray-300 text-gray-900"
+                  }`}
+                  disabled={isRecording}
+                >
+                  <option value="id-ID">🇮🇩</option>
+                  <option value="en-US">🇺🇸</option>
+                </select>
+                {/* Voice Input Button */}
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                    isRecording
+                      ? 'bg-red-500 text-white shadow-lg animate-pulse'
+                      : isDarkMode
+                        ? 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30'
+                        : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                  }`}
+                  title="Voice input"
+                >
+                  {isRecording ? (
+                    <FiMicOff className="text-sm" />
+                  ) : (
+                    <FiMic className="text-sm" />
+                  )}
+                </button>
+              </div>
+            </div>
+            {isOverLimit && (
+              <p className="mt-2 text-sm text-red-500">
+                Content exceeds maximum character limit
+              </p>
+            )}
+            
+            {/* Recording Status & Transcript (only show when recording) */}
+            {isRecording && (
+              <div className={`mt-4 p-4 rounded-xl border transition-all duration-300 ${
+                isDarkMode
+                  ? "bg-slate-700/50 border-purple-600"
+                  : "bg-white/70 border-purple-200"
+              }`}>
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  <span className={`text-sm font-medium ${
+                    isDarkMode ? "text-purple-300" : "text-purple-700"
+                  }`}>
+                    🎤 Recording in {selectedLanguage === 'id-ID' ? 'Bahasa Indonesia' : 'English'}... Speak now
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            {transcript && !isRecording && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-sm font-semibold ${
+                    isDarkMode ? "text-purple-300" : "text-purple-900"
+                  }`}>
+                    📝 Voice transcript:
+                  </span>
+                  <div className="flex space-x-2">
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={handleEditTranscript}
+                        className={`flex items-center space-x-1 text-sm font-medium hover:underline transition-all duration-200 ${
+                          isDarkMode ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-800"
+                        }`}
+                      >
+                        <FiEdit3 className="text-base" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={saveEditedTranscript}
+                      className={`text-sm font-medium px-3 py-1 rounded-lg transition-all duration-200 ${
+                        isDarkMode
+                          ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
+                          : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                      }`}
+                    >
+                      Add to Content
+                    </button>
+                  </div>
+                </div>
+                
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                      className={`w-full p-3 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+                        isDarkMode
+                          ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
+                          : "bg-white/70 border-purple-300 text-gray-900 placeholder-gray-500"
+                      }`}
+                      rows={3}
+                      placeholder="Edit transcript..."
+                    />
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={saveEditedTranscript}
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEditTranscript}
+                        className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                          isDarkMode
+                            ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`p-3 rounded-xl border transition-all duration-200 ${
+                    isDarkMode
+                      ? "bg-slate-700/50 border-purple-600 text-gray-200"
+                      : "bg-white/70 border-purple-200 text-gray-700"
+                  }`}>
+                    <p className="text-sm leading-relaxed">{transcript}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* AI Enhancement Buttons */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleTidyUp}
+                disabled={!content.trim() || isTidying}
+                className={`flex-1 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+              >
+                {isTidying ? 'AI Processing...' : '✨ Tidy Up & Analyze Mood'}
+              </button>
+            </div>
+            <p className={`text-xs text-center mt-2 ${
+              isDarkMode ? "text-gray-400" : "text-gray-600"
+            }`}>
+              AI will improve your writing and detect your mood automatically
+            </p>
+          </div>
+
+          {/* AI Detected Mood (shown after tidy up) */}
+          {(isMoodAuto || selectedMood !== '😊' || moodIntensity !== 5) && (
+            <div className={`mb-8 p-4 rounded-xl border transition-all duration-300 ${
+              isDarkMode 
+                ? "bg-purple-900/20 border-purple-700" 
+                : "bg-purple-50 border-purple-200"
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-semibold ${
+                  isDarkMode ? "text-white" : "text-gray-900"
+                }`}>
+                  🤖 AI Detected Mood
+                </h3>
+                {isMoodAuto && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    isDarkMode ? "bg-purple-800/50 text-purple-300" : "bg-purple-200 text-purple-700"
+                  }`}>
+                    Auto-detected
+                  </span>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {/* Mood Selection */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}>
+                    How are you feeling?
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {moodOptions.slice(0, 8).map((item) => (
+                      <div key={item.mood} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMood(item.emoji);
+                            setIsMoodAuto(false);
+                          }}
+                          className={`p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                            selectedMood === item.emoji 
+                              ? isDarkMode
+                                ? 'border-purple-500 bg-purple-900/50 shadow-lg'
+                                : 'border-purple-500 bg-purple-50 shadow-lg'
+                              : isDarkMode
+                                ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
+                                : 'border-gray-200 hover:border-gray-300 bg-white/50'
+                          }`}
+                        >
+                          <span className="text-xl">{item.emoji}</span>
+                        </button>
+                        {/* Tooltip */}
+                        <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
+                          isDarkMode 
+                            ? 'bg-slate-700 text-white border border-slate-600' 
+                            : 'bg-gray-800 text-white border border-gray-600'
+                        }`}>
+                          <div className="font-medium">{item.emoji} {item.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                          <div className="text-gray-300 text-xs mt-1">{item.definition.split(':')[1]?.trim() || item.definition}</div>
+                          {/* Arrow */}
+                          <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
+                            isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
+                          }`}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Mood Intensity */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}>
+                    Mood Intensity: <span className="font-semibold">{moodIntensity}/10</span>
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Low</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      value={moodIntensity}
+                      onChange={(e) => {
+                        setMoodIntensity(Number(e.target.value));
+                        setIsMoodAuto(false);
+                      }}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                    />
+                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>High</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Category Selection */}
           <div className="mb-8">
@@ -817,173 +1117,6 @@ export default function NewEntry() {
             </div>
           </div>
 
-          {/* Your Thoughts */}
-          <div className="mb-8">
-            <label htmlFor="content" className={`block text-lg font-semibold mb-3 ${
-              isDarkMode ? "text-white" : "text-gray-900"
-            }`}>
-              Your Thoughts
-            </label>
-            <div className="relative">
-              <textarea
-                id="content"
-                rows={10}
-                maxLength={MAX_CHARS}
-                className={`w-full px-4 py-3 rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                  isOverLimit 
-                    ? 'border-red-500 focus:ring-red-500' 
-                    : isDarkMode
-                      ? 'bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm'
-                      : 'bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500 backdrop-blur-sm'
-                }`}
-                placeholder="What's on your mind?"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
-              <div className={`absolute bottom-4 right-4 text-sm font-medium ${
-                isDarkMode ? "text-gray-400" : "text-gray-600"
-              }`}>
-                {charCount}/{MAX_CHARS}
-              </div>
-            </div>
-          </div>
-
-          {/* Voice Input Section - Dashboard styling */}
-          <div className={`mb-8 p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${
-            isDarkMode 
-              ? "bg-purple-900/30 border-purple-700" 
-              : "bg-purple-100/50 border-purple-200"
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-              <h3 className={`text-lg font-semibold ${
-                isDarkMode ? "text-purple-300" : "text-purple-900"
-              }`}>
-                Voice Input
-              </h3>
-              <div className="flex flex-col sm:flex-row items-center gap-3">
-                {/* Language Selector - Dashboard styling */}
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className={`text-sm border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 w-full sm:w-auto ${
-                    isDarkMode
-                      ? "bg-slate-700/50 border-slate-600 text-white backdrop-blur-sm"
-                      : "bg-white/70 border-purple-300 text-gray-900 backdrop-blur-sm"
-                  }`}
-                  disabled={isRecording}
-                >
-                  <option value="id-ID">🇮🇩 Bahasa Indonesia</option>
-                  <option value="en-US">🇺🇸 English</option>
-                </select>
-                
-                <button
-                  type="button"
-                  onClick={toggleRecording}
-                  className={`flex items-center justify-center space-x-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-105 w-full sm:w-auto ${
-                    isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
-                      : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg'
-                  }`}
-                >
-                  {isRecording ? (
-                    <>
-                      <FiMicOff className="text-lg" />
-                      <span>Stop Recording</span>
-                    </>
-                  ) : (
-                    <>
-                      <FiMic className="text-lg" />
-                      <span>Start Recording</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            {isRecording && (
-              <div className={`flex items-center space-x-3 p-4 rounded-xl border backdrop-blur-sm transition-all duration-300 ${
-                isDarkMode
-                  ? "bg-slate-700/50 border-purple-600"
-                  : "bg-white/70 border-purple-200"
-              }`}>
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <span className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-700"
-                }`}>
-                  Recording in {selectedLanguage === 'id-ID' ? 'Bahasa Indonesia' : 'English'}... Speak now
-                </span>
-              </div>
-            )}
-            
-            {transcript && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className={`text-sm font-semibold ${
-                    isDarkMode ? "text-purple-300" : "text-purple-900"
-                  }`}>
-                    Transcript:
-                  </span>
-                  {!isEditing && (
-                    <button
-                      type="button"
-                      onClick={handleEditTranscript}
-                      className={`flex items-center space-x-2 text-sm font-medium hover:underline transition-all duration-200 hover:scale-105 ${
-                        isDarkMode ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-800"
-                      }`}
-                    >
-                      <FiEdit3 className="text-base" />
-                      <span>Edit</span>
-                    </button>
-                  )}
-                </div>
-                
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <textarea
-                      value={transcript}
-                      onChange={(e) => setTranscript(e.target.value)}
-                      className={`w-full p-4 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
-                        isDarkMode
-                          ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm"
-                          : "bg-white/70 border-purple-300 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
-                      }`}
-                      rows={4}
-                      placeholder="Edit your transcript..."
-                    />
-                    <div className="flex space-x-3">
-                      <button
-                        type="button"
-                        onClick={saveEditedTranscript}
-                        className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 hover:scale-105 shadow-lg"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleEditTranscript}
-                        className={`px-6 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                          isDarkMode
-                            ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                        }`}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={`p-4 rounded-xl border backdrop-blur-sm transition-all duration-200 ${
-                    isDarkMode
-                      ? "bg-slate-700/50 border-purple-600 text-gray-200"
-                      : "bg-white/70 border-purple-200 text-gray-700"
-                  }`}>
-                    <p className="text-sm leading-relaxed">{transcript}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
@@ -997,32 +1130,6 @@ export default function NewEntry() {
               ? "border-slate-700" 
               : "border-gray-200"
           }`}>
-            <button
-              type="button"
-              onClick={handleTidyUp}
-              disabled={!content.trim() || isTidying || isSubmitting}
-              className={`flex items-center justify-center space-x-2 px-6 py-3 text-sm font-semibold transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl w-full sm:w-auto ${
-                isDarkMode
-                  ? "text-gray-300 hover:text-white hover:bg-slate-700/50"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
-            >
-              {isTidying ? (
-                <>
-                  <div className={`w-4 h-4 border-2 ${
-                    isDarkMode 
-                      ? 'border-purple-400 border-t-transparent' 
-                      : 'border-purple-600 border-t-transparent'
-                  } rounded-full animate-spin`}></div>
-                  <span>AI is tidying up your notes...</span>
-                </>
-              ) : (
-                <>
-                  <span>Tidy Up with AI</span>
-                </>
-              )}
-            </button>
-            
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 type="button"

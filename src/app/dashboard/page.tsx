@@ -21,6 +21,29 @@ type JournalEntry = {
   updated_at: string;
 };
 
+const moodOptions = [
+  { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated' },
+  { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content' },
+  { mood: 'neutral', emoji: '😐', definition: 'Neutral: Feeling neither happy nor sad' },
+  { mood: 'sad', emoji: '☹️', definition: 'Sad: Feeling unhappy or sorrowful' },
+  { mood: 'very_sad', emoji: '😭', definition: 'Very Sad: Feeling extremely upset or devastated' },
+  { mood: 'excited', emoji: '🤩', definition: 'Excited: Feeling enthusiastic and eager' },
+  { mood: 'anxious', emoji: '😰', definition: 'Anxious: Feeling worried or nervous' },
+  { mood: 'angry', emoji: '😠', definition: 'Angry: Feeling annoyed or irritated' },
+  { mood: 'tired', emoji: '😴', definition: 'Tired: Feeling weary or exhausted' },
+  { mood: 'love', emoji: '🥰', definition: 'Love: Feeling deep affection and care' },
+  { mood: 'confused', emoji: '😕', definition: 'Confused: Feeling unclear or uncertain' },
+  { mood: 'grateful', emoji: '🙏', definition: 'Grateful: Feeling thankful and appreciative' },
+  { mood: 'hopeful', emoji: '🌟', definition: 'Hopeful: Feeling optimistic about the future' },
+  { mood: 'frustrated', emoji: '😤', definition: 'Frustrated: Feeling annoyed by difficulties' },
+  { mood: 'calm', emoji: '😌', definition: 'Calm: Feeling peaceful and relaxed' },
+  { mood: 'proud', emoji: '😎', definition: 'Proud: Feeling satisfied about achievements' },
+];
+
+const getMoodInfo = (moodEmoji: string) => {
+  return moodOptions.find(option => option.emoji === moodEmoji);
+};
+
 export default function Dashboard() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -517,7 +540,28 @@ export default function Dashboard() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-3">
-                          <span className="text-2xl">{entry.mood || '😊'}</span>
+                          <div className="relative group">
+                            <span className="text-2xl">{entry.mood || '😊'}</span>
+                            {/* Tooltip */}
+                            {entry.mood && (() => {
+                              const moodInfo = getMoodInfo(entry.mood);
+                              if (!moodInfo) return null;
+                              return (
+                                <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
+                                  isDarkMode 
+                                    ? 'bg-slate-700 text-white border border-slate-600' 
+                                    : 'bg-gray-800 text-white border border-gray-600'
+                                }`}>
+                                  <div className="font-medium">{moodInfo.emoji} {moodInfo.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                                  <div className="text-gray-300 text-xs mt-1">{moodInfo.definition.split(':')[0]}</div>
+                                  {/* Arrow */}
+                                  <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
+                                    isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
+                                  }`}></div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                           <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                             {entry.title || 'Untitled Entry'}
                           </h3>
