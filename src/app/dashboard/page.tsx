@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getUserEntries } from './actions';
 import { getMoodStats } from './stats-actions';
 import { DeleteButton } from './delete-button';
-import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown } from 'react-icons/fi';
+import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
 
 type JournalEntry = {
   id: string;
@@ -19,25 +19,26 @@ type JournalEntry = {
   tags?: string[];
   created_at: string;
   updated_at: string;
+  relevanceScore?: number;
 };
 
 const moodOptions = [
-  { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated' },
-  { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content' },
-  { mood: 'neutral', emoji: '😐', definition: 'Neutral: Feeling neither happy nor sad' },
-  { mood: 'sad', emoji: '☹️', definition: 'Sad: Feeling unhappy or sorrowful' },
-  { mood: 'very_sad', emoji: '😭', definition: 'Very Sad: Feeling extremely upset or devastated' },
-  { mood: 'excited', emoji: '🤩', definition: 'Excited: Feeling enthusiastic and eager' },
-  { mood: 'anxious', emoji: '😰', definition: 'Anxious: Feeling worried or nervous' },
-  { mood: 'angry', emoji: '😠', definition: 'Angry: Feeling annoyed or irritated' },
-  { mood: 'tired', emoji: '😴', definition: 'Tired: Feeling weary or exhausted' },
-  { mood: 'love', emoji: '🥰', definition: 'Love: Feeling deep affection and care' },
-  { mood: 'confused', emoji: '😕', definition: 'Confused: Feeling unclear or uncertain' },
-  { mood: 'grateful', emoji: '🙏', definition: 'Grateful: Feeling thankful and appreciative' },
-  { mood: 'hopeful', emoji: '🌟', definition: 'Hopeful: Feeling optimistic about the future' },
-  { mood: 'frustrated', emoji: '😤', definition: 'Frustrated: Feeling annoyed by difficulties' },
-  { mood: 'calm', emoji: '😌', definition: 'Calm: Feeling peaceful and relaxed' },
-  { mood: 'proud', emoji: '😎', definition: 'Proud: Feeling satisfied about achievements' },
+  { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated', label: 'Very Happy' },
+  { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content', label: 'Happy' },
+  { mood: 'neutral', emoji: '😐', definition: 'Neutral: Feeling neither happy nor sad', label: 'Neutral' },
+  { mood: 'sad', emoji: '☹️', definition: 'Sad: Feeling unhappy or sorrowful', label: 'Sad' },
+  { mood: 'very_sad', emoji: '😭', definition: 'Very Sad: Feeling extremely upset or devastated', label: 'Very Sad' },
+  { mood: 'excited', emoji: '🤩', definition: 'Excited: Feeling enthusiastic and eager', label: 'Excited' },
+  { mood: 'anxious', emoji: '😰', definition: 'Anxious: Feeling worried or nervous', label: 'Anxious' },
+  { mood: 'angry', emoji: '😠', definition: 'Angry: Feeling annoyed or irritated', label: 'Angry' },
+  { mood: 'tired', emoji: '😴', definition: 'Tired: Feeling weary or exhausted', label: 'Tired' },
+  { mood: 'love', emoji: '🥰', definition: 'Love: Feeling deep affection and care', label: 'Love' },
+  { mood: 'confused', emoji: '😕', definition: 'Confused: Feeling unclear or uncertain', label: 'Confused' },
+  { mood: 'grateful', emoji: '🙏', definition: 'Grateful: Feeling thankful and appreciative', label: 'Grateful' },
+  { mood: 'hopeful', emoji: '🌟', definition: 'Hopeful: Feeling optimistic about the future', label: 'Hopeful' },
+  { mood: 'frustrated', emoji: '😤', definition: 'Frustrated: Feeling annoyed by difficulties', label: 'Frustrated' },
+  { mood: 'calm', emoji: '😌', definition: 'Calm: Feeling peaceful and relaxed', label: 'Calm' },
+  { mood: 'proud', emoji: '😎', definition: 'Proud: Feeling satisfied about achievements', label: 'Proud' },
 ];
 
 const getMoodInfo = (moodEmoji: string) => {
@@ -50,6 +51,14 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [selectedMood, setSelectedMood] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('relevance');
+  const [searchResults, setSearchResults] = useState<JournalEntry[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [moodStats, setMoodStats] = useState<{ averageIntensity: number; totalMoods: number } | null>(null);
 
@@ -146,10 +155,79 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [profileDropdownOpen]);
 
-  const filteredEntries = entries.filter(entry =>
-    entry.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    entry.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const searchEntries = async () => {
+    if (!searchQuery.trim() && !selectedMood && !selectedCategory && !dateFrom && !dateTo) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      
+      const params = new URLSearchParams({
+        q: searchQuery,
+        sortBy,
+        limit: '50'
+      });
+
+      // Convert mood text to emoji for database query
+      const moodEmoji = selectedMood ? moodOptions.find(m => m.mood === selectedMood)?.emoji : '';
+      if (moodEmoji) params.append('mood', moodEmoji);
+      
+      if (selectedCategory) params.append('category', selectedCategory);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
+
+      console.log('Search params:', params.toString());
+      console.log('Selected mood:', selectedMood, '-> Emoji:', moodEmoji);
+
+      const response = await fetch(`/api/search?${params}`);
+      const data = await response.json();
+
+      console.log('Search response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to search entries');
+      }
+
+      setSearchResults(data.entries);
+    } catch (error: any) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Auto-search when search parameters change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim() || selectedMood || selectedCategory || dateFrom || dateTo) {
+        searchEntries();
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, selectedMood, selectedCategory, dateFrom, dateTo, sortBy]);
+
+  const clearFilters = () => {
+    setSelectedMood('');
+    setSelectedCategory('');
+    setDateFrom('');
+    setDateTo('');
+    setSortBy('relevance');
+    setSearchQuery('');
+  };
+
+  // Use search results if filters are applied or searching, otherwise use filtered entries
+  const displayEntries = (searchResults.length > 0 || isSearching || selectedMood || selectedCategory || dateFrom || dateTo) 
+    ? searchResults 
+    : entries.filter(entry =>
+        entry.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        entry.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
   
   // Calculate statistics from actual data
   const calculateStats = () => {
@@ -466,15 +544,158 @@ export default function Dashboard() {
                   : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500"
               }`}
             />
-            <button className={`absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-all duration-200 ${
-              isDarkMode 
-                ? "text-gray-400 hover:text-gray-300" 
-                : "text-gray-500 hover:text-gray-700"
-            }`}>
+            <button 
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-all duration-200 ${
+                isDarkMode 
+                  ? "text-gray-400 hover:text-gray-300 hover:bg-slate-700" 
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              }`}
+            >
               <FiFilter className="text-xl" />
             </button>
           </div>
         </div>
+
+        {/* Advanced Filters */}
+        {showAdvancedFilters && (
+          <div className={`mb-8 p-6 rounded-2xl backdrop-blur-sm border ${
+            isDarkMode 
+              ? "bg-slate-800/50 border-slate-700" 
+              : "bg-white/70 border-gray-200"
+          }`}>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Mood Filter */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Mood
+                </label>
+                <select
+                  value={selectedMood}
+                  onChange={(e) => setSelectedMood(e.target.value)}
+                  className={`w-full p-2 rounded-lg border transition-all duration-200 ${
+                    isDarkMode 
+                      ? "bg-slate-700 border-slate-600 text-white" 
+                      : "bg-white border-gray-200 text-gray-900"
+                  }`}
+                >
+                  <option value="">All Moods</option>
+                  {moodOptions.map(option => (
+                    <option key={option.mood} value={option.mood}>
+                      {option.emoji} {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Category
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className={`w-full p-2 rounded-lg border transition-all duration-200 ${
+                    isDarkMode 
+                      ? "bg-slate-700 border-slate-600 text-white" 
+                      : "bg-white border-gray-200 text-gray-900"
+                  }`}
+                >
+                  <option value="">All Categories</option>
+                  <option value="Personal">Personal</option>
+                  <option value="Work">Work</option>
+                  <option value="Health">Health</option>
+                  <option value="Family">Family</option>
+                  <option value="Learning">Learning</option>
+                </select>
+              </div>
+
+              {/* Date From */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className={`w-full p-2 rounded-lg border transition-all duration-200 ${
+                    isDarkMode 
+                      ? "bg-slate-700 border-slate-600 text-white" 
+                      : "bg-white border-gray-200 text-gray-900"
+                  }`}
+                />
+              </div>
+
+              {/* Date To */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className={`w-full p-2 rounded-lg border transition-all duration-200 ${
+                    isDarkMode 
+                      ? "bg-slate-700 border-slate-600 text-white" 
+                      : "bg-white border-gray-200 text-gray-900"
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Sort and Clear Filters */}
+            <div className="flex flex-wrap items-center justify-between mt-6 gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <label className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Sort by:
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className={`p-2 rounded-lg border transition-all duration-200 ${
+                      isDarkMode 
+                        ? "bg-slate-700 border-slate-600 text-white" 
+                        : "bg-white border-gray-200 text-gray-900"
+                    }`}
+                  >
+                    <option value="relevance">Relevance</option>
+                    <option value="date_desc">Newest First</option>
+                    <option value="date_asc">Oldest First</option>
+                    <option value="mood">Mood</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={clearFilters}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                  isDarkMode 
+                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600" 
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                <FiX />
+                <span>Clear Filters</span>
+              </button>
+            </div>
+
+            {/* Search Results Summary */}
+            {searchResults.length > 0 && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                isDarkMode ? "bg-slate-700/50" : "bg-gray-100/70"
+              }`}>
+                <p className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Found {searchResults.length} results
+                  {searchQuery.trim() && ` for "${searchQuery}"`}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-4 mb-8">
@@ -517,20 +738,24 @@ export default function Dashboard() {
               <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}>Error</h2>
               <p className={isDarkMode ? "text-gray-400" : "text-gray-600"}>{error}</p>
             </div>
-          ) : filteredEntries.length === 0 ? (
+          ) : displayEntries.length === 0 ? (
             <div className={`p-8 rounded-2xl text-center ${
               isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-white/70 border-gray-200"
             }`}>
               <h3 className={`text-xl font-semibold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                No entries yet
+                {(searchQuery.trim() || selectedMood || selectedCategory || dateFrom || dateTo) 
+                  ? 'No results found' 
+                  : 'No entries yet'}
               </h3>
               <p className={`mb-6 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                Start your journaling journey by creating your first entry.
+                {(searchQuery.trim() || selectedMood || selectedCategory || dateFrom || dateTo)
+                  ? 'Try adjusting your search terms or filters.'
+                  : 'Start your journaling journey by creating your first entry.'}
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredEntries.slice(0, 3).map((entry) => (
+              {displayEntries.slice(0, 3).map((entry) => (
                 <div key={entry.id} className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
                   isDarkMode 
                     ? "bg-slate-800/50 border-slate-700" 
@@ -542,6 +767,13 @@ export default function Dashboard() {
                         <div className="flex items-center space-x-3 mb-3">
                           <div className="relative group">
                             <span className="text-2xl">{entry.mood || '😊'}</span>
+                          {entry.relevanceScore && (
+                            <span className={`text-xs px-2 py-1 rounded-full ml-2 ${
+                              isDarkMode ? "bg-purple-900/50 text-purple-300" : "bg-purple-100 text-purple-700"
+                            }`}>
+                              Score: {entry.relevanceScore.toFixed(1)}
+                            </span>
+                          )}
                             {/* Tooltip */}
                             {entry.mood && (() => {
                               const moodInfo = getMoodInfo(entry.mood);
