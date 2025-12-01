@@ -24,6 +24,10 @@ export default function NewEntry() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#6366f1');
   const [isTidying, setIsTidying] = useState(false);
+  const [aiResult, setAiResult] = useState('');
+  const [showAiResult, setShowAiResult] = useState(false);
+  const [isEditingAiResult, setIsEditingAiResult] = useState(false);
+  const [editedAiResult, setEditedAiResult] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -103,8 +107,6 @@ export default function NewEntry() {
     setError(null);
     
     try {
-      // In a real app, you would call your AI API here
-      // For now, we'll just capitalize the first letter of each sentence
       const response = await fetch('/api/ai/tidy', {
         method: 'POST',
         headers: {
@@ -116,13 +118,39 @@ export default function NewEntry() {
       if (!response.ok) throw new Error('Failed to tidy up text');
       
       const { tidiedText } = await response.json();
-      setContent(tidiedText);
+      setAiResult(tidiedText);
+      setEditedAiResult(tidiedText);
+      setShowAiResult(true);
+      setIsEditingAiResult(false);
     } catch (error) {
       console.error('Error tidying up text:', error);
       setError('Failed to tidy up text. Please try again.');
     } finally {
       setIsTidying(false);
     }
+  };
+
+  const handleAcceptAiResult = () => {
+    setContent(aiResult);
+    setShowAiResult(false);
+    setAiResult('');
+    setEditedAiResult('');
+  };
+
+  const handleEditAiResult = () => {
+    setIsEditingAiResult(true);
+  };
+
+  const handleSaveEditedAiResult = () => {
+    setAiResult(editedAiResult);
+    setIsEditingAiResult(false);
+  };
+
+  const handleCancelAiResult = () => {
+    setShowAiResult(false);
+    setAiResult('');
+    setEditedAiResult('');
+    setIsEditingAiResult(false);
   };
   
   const toggleRecording = () => {
@@ -324,9 +352,148 @@ export default function NewEntry() {
         </nav>
       </header>
 
+      {/* AI Result Modal */}
+      {showAiResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
+            isDarkMode 
+              ? "bg-slate-800/90 border-slate-700" 
+              : "bg-white/90 border-gray-200"
+          }`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-xl font-bold ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}>
+                AI Tidied Result
+              </h3>
+              <button
+                onClick={handleCancelAiResult}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  isDarkMode 
+                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600" 
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className={`mb-4 p-4 rounded-xl border ${
+              isDarkMode 
+                ? "bg-slate-700/50 border-slate-600" 
+                : "bg-gray-50 border-gray-200"
+            }`}>
+              <p className={`text-sm font-medium mb-2 ${
+                isDarkMode ? "text-gray-300" : "text-gray-600"
+              }`}>
+                Original text:
+              </p>
+              <p className={`text-sm ${
+                isDarkMode ? "text-gray-400" : "text-gray-500"
+              }`}>
+                {content}
+              </p>
+            </div>
+            
+            <div className={`mb-6 p-4 rounded-xl border ${
+              isDarkMode 
+                ? "bg-purple-900/20 border-purple-700" 
+                : "bg-purple-50 border-purple-200"
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className={`text-sm font-medium ${
+                  isDarkMode ? "text-purple-300" : "text-purple-700"
+                }`}>
+                  AI improved version:
+                </p>
+                {!isEditingAiResult && (
+                  <button
+                    onClick={handleEditAiResult}
+                    className={`flex items-center space-x-1 text-sm font-medium hover:underline transition-all duration-200 ${
+                      isDarkMode ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-800"
+                    }`}
+                  >
+                    <FiEdit3 className="text-base" />
+                    <span>Edit</span>
+                  </button>
+                )}
+              </div>
+              
+              {isEditingAiResult ? (
+                <textarea
+                  value={editedAiResult}
+                  onChange={(e) => setEditedAiResult(e.target.value)}
+                  className={`w-full p-4 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+                    isDarkMode
+                      ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
+                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                  }`}
+                  rows={8}
+                  placeholder="Edit AI result..."
+                />
+              ) : (
+                <p className={`text-sm leading-relaxed ${
+                  isDarkMode ? "text-gray-200" : "text-gray-700"
+                }`}>
+                  {aiResult}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex space-x-3">
+              {isEditingAiResult ? (
+                <>
+                  <button
+                    onClick={handleSaveEditedAiResult}
+                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
+                      isDarkMode
+                        ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
+                        : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                    }`}
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setIsEditingAiResult(false)}
+                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
+                      isDarkMode
+                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    Cancel Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleAcceptAiResult}
+                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+                  >
+                    Accept & Use This
+                  </button>
+                  <button
+                    onClick={handleCancelAiResult}
+                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
+                      isDarkMode
+                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    Keep Original
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
-        <div className={`max-w-4xl mx-auto p-6 sm:p-8 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
+      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className={`max-w-4xl mx-auto p-4 sm:p-6 md:p-8 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
           isDarkMode 
             ? "bg-slate-800/50 border-slate-700" 
             : "bg-white/70 border-gray-200"
@@ -338,7 +505,7 @@ export default function NewEntry() {
             }`}>
               How are you feeling?
             </label>
-            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
               {[
                 { emoji: '😊', mood: 'happy', label: 'Happy' },
                 { emoji: '😢', mood: 'sad', label: 'Sad' },
@@ -436,7 +603,7 @@ export default function NewEntry() {
                 + Add Category
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
               {categories.map((category: {
                 id: string;
                 name: string;
@@ -687,18 +854,18 @@ export default function NewEntry() {
               ? "bg-purple-900/30 border-purple-700" 
               : "bg-purple-100/50 border-purple-200"
           }`}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <h3 className={`text-lg font-semibold ${
                 isDarkMode ? "text-purple-300" : "text-purple-900"
               }`}>
                 Voice Input
               </h3>
-              <div className="flex items-center space-x-3">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Language Selector - Dashboard styling */}
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className={`text-sm border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+                  className={`text-sm border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 w-full sm:w-auto ${
                     isDarkMode
                       ? "bg-slate-700/50 border-slate-600 text-white backdrop-blur-sm"
                       : "bg-white/70 border-purple-300 text-gray-900 backdrop-blur-sm"
@@ -712,7 +879,7 @@ export default function NewEntry() {
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-105 ${
+                  className={`flex items-center justify-center space-x-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-105 w-full sm:w-auto ${
                     isRecording
                       ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
                       : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg'
@@ -825,7 +992,7 @@ export default function NewEntry() {
           )}
 
           {/* Footer Actions */}
-          <div className={`flex justify-between items-center pt-6 border-t transition-all duration-200 ${
+          <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-6 border-t transition-all duration-200 ${
             isDarkMode 
               ? "border-slate-700" 
               : "border-gray-200"
@@ -834,20 +1001,33 @@ export default function NewEntry() {
               type="button"
               onClick={handleTidyUp}
               disabled={!content.trim() || isTidying || isSubmitting}
-              className={`px-6 py-3 text-sm font-semibold transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl ${
+              className={`flex items-center justify-center space-x-2 px-6 py-3 text-sm font-semibold transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl w-full sm:w-auto ${
                 isDarkMode
                   ? "text-gray-300 hover:text-white hover:bg-slate-700/50"
                   : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
               }`}
             >
-              {isTidying ? 'Tidying...' : 'Tidy Up with AI'}
+              {isTidying ? (
+                <>
+                  <div className={`w-4 h-4 border-2 ${
+                    isDarkMode 
+                      ? 'border-purple-400 border-t-transparent' 
+                      : 'border-purple-600 border-t-transparent'
+                  } rounded-full animate-spin`}></div>
+                  <span>AI is tidying up your notes...</span>
+                </>
+              ) : (
+                <>
+                  <span>Tidy Up with AI</span>
+                </>
+              )}
             </button>
             
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className={`px-6 py-3 text-sm font-semibold transition-all duration-200 hover:scale-105 rounded-xl ${
+                className={`px-6 py-3 text-sm font-semibold transition-all duration-200 hover:scale-105 rounded-xl w-full sm:w-auto ${
                   isDarkMode
                     ? "text-gray-300 hover:text-white hover:bg-slate-700/50"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
@@ -859,13 +1039,27 @@ export default function NewEntry() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={!content.trim() || !title.trim() || isSubmitting || isTidying || isOverLimit}
-                className={`px-8 py-3 text-sm font-semibold rounded-full transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
-                  isOverLimit || !content.trim() || !title.trim()
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+                className={`px-8 py-3 text-sm font-semibold rounded-full transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg w-full sm:w-auto ${
+                  isSubmitting || isTidying
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : isOverLimit
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
                 }`}
               >
-                {isSubmitting ? 'Saving...' : 'Save Entry'}
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Saving...</span>
+                  </div>
+                ) : isTidying ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>AI Processing...</span>
+                  </div>
+                ) : (
+                  'Create Entry'
+                )}
               </button>
             </div>
           </div>
