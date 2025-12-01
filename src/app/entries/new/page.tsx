@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { createEntry } from './actions';
-import { addCategory } from './category-actions';
 import { FiMic, FiMicOff, FiEdit3, FiSun, FiMoon } from 'react-icons/fi';
 
 export default function NewEntry() {
@@ -14,17 +13,8 @@ export default function NewEntry() {
   const [moodIntensity, setMoodIntensity] = useState(5);
   const [isMoodAuto, setIsMoodAuto] = useState(false);
   const [isDetectingMood, setIsDetectingMood] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [categories, setCategories] = useState<Array<{
-    id: string;
-    name: string;
-    color: string;
-  }>>([]);
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryColor, setNewCategoryColor] = useState('#6366f1');
   const [isTidying, setIsTidying] = useState(false);
   const [aiResult, setAiResult] = useState('');
   const [showAiResult, setShowAiResult] = useState(false);
@@ -36,7 +26,10 @@ export default function NewEntry() {
   const [transcript, setTranscript] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('id-ID');
+  const [aiSuggestedTags, setAiSuggestedTags] = useState<string[]>([]);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [aiDetectedMood, setAiDetectedMood] = useState<string>('');
   const recognitionRef = useRef<any>(null);
   const router = useRouter();
 
@@ -58,9 +51,6 @@ export default function NewEntry() {
       setIsDarkMode(true);
       document.documentElement.classList.add("dark");
     }
-    
-    // Load categories
-    loadCategories();
     
     // Initialize speech recognition if available
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
@@ -144,8 +134,8 @@ export default function NewEntry() {
     setError(null);
     
     try {
-      // Run both tidy up and mood analysis in parallel
-      const [tidyResponse, moodResponse] = await Promise.all([
+      // Run tidy up, mood analysis, and auto-tagging in parallel
+      const [tidyResponse, moodResponse, tagsResponse] = await Promise.all([
         fetch('/api/ai/tidy', {
           method: 'POST',
           headers: {
@@ -159,14 +149,23 @@ export default function NewEntry() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ content }),
+        }),
+        fetch('/api/ai/tags', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content }),
         })
       ]);
       
       if (!tidyResponse.ok) throw new Error('Failed to tidy up text');
       if (!moodResponse.ok) throw new Error('Failed to detect mood');
+      if (!tagsResponse.ok) throw new Error('Failed to generate tags');
       
       const { tidiedText } = await tidyResponse.json();
       const moodData = await moodResponse.json();
+      const tagsData = await tagsResponse.json();
       
       // Set tidied text
       setAiResult(tidiedText);
@@ -174,11 +173,24 @@ export default function NewEntry() {
       
       // Set mood data
       if (moodData?.emoji) {
+        console.log('Setting mood - AI detected:', moodData.emoji);
         setSelectedMood(moodData.emoji);
+        setAiDetectedMood(moodData.emoji);
         if (typeof moodData.intensity === 'number' && moodData.intensity >= 1 && moodData.intensity <= 10) {
           setMoodIntensity(moodData.intensity);
         }
         setIsMoodAuto(true);
+        // Debug: Verify both states are set
+        setTimeout(() => {
+          console.log('After setting - selectedMood:', selectedMood);
+          console.log('After setting - aiDetectedMood:', aiDetectedMood);
+        }, 100);
+      }
+      
+      // Set tag suggestions
+      if (tagsData?.suggestedTags && Array.isArray(tagsData.suggestedTags)) {
+        setAiSuggestedTags(tagsData.suggestedTags);
+        setShowTagSuggestions(true);
       }
       
       setShowAiResult(true);
@@ -243,30 +255,6 @@ export default function NewEntry() {
     setIsEditing(false);
   };
   
-  const loadCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      
-      setCategories(data || []);
-      // Set default category to 'Personal' if available
-      const personalCategory = data?.find((cat: {
-        id: string;
-        name: string;
-        color: string;
-      }) => cat.name === 'Personal');
-      if (personalCategory) {
-        setSelectedCategory(personalCategory.id);
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
-  
   const addTag = () => {
     const trimmedTag = tagInput.trim();
     if (trimmedTag && !tags.includes(trimmedTag) && tags.length < 5) {
@@ -286,35 +274,6 @@ export default function NewEntry() {
     }
   };
   
-  const addNewCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    
-    try {
-      const result = await addCategory(newCategoryName.trim(), newCategoryColor);
-      
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      
-      if (result.data) {
-        setCategories([...categories, result.data]);
-        setSelectedCategory(result.data.id);
-        setNewCategoryName('');
-        setNewCategoryColor('#6366f1');
-        setShowAddCategory(false);
-      }
-    } catch (error: any) {
-      console.error('Error adding category:', error);
-      setError(error.message || 'Failed to add category');
-    }
-  };
-  
-  const predefinedColors = [
-    '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#ec4899', '#14b8a6', '#f97316', '#84cc16', '#06b6d4'
-  ];
-
   const moodOptions = [
     { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated' },
     { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content' },
@@ -365,7 +324,7 @@ export default function NewEntry() {
     
     try {
       // Use server action which has access to server-side session
-      const result = await createEntry(title, content, selectedMood, selectedCategory, tags, moodIntensity);
+      const result = await createEntry(title, content, selectedMood, tags, moodIntensity);
       
       if (result?.error) {
         setError(result.error);
@@ -777,13 +736,13 @@ export default function NewEntry() {
                 disabled={!content.trim() || isTidying}
                 className={`flex-1 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
               >
-                {isTidying ? 'AI Processing...' : '✨ Tidy Up & Analyze Mood'}
+                {isTidying ? 'AI Processing...' : '✨ Tidy Up, Analyze Mood & Tags'}
               </button>
             </div>
             <p className={`text-xs text-center mt-2 ${
               isDarkMode ? "text-gray-400" : "text-gray-600"
             }`}>
-              AI will improve your writing and detect your mood automatically
+              AI will improve your writing, detect your mood, and suggest relevant tags automatically
             </p>
           </div>
 
@@ -817,8 +776,17 @@ export default function NewEntry() {
                   }`}>
                     How are you feeling?
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {moodOptions.slice(0, 8).map((item) => (
+                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                    {moodOptions.map((item) => {
+                      const isAISelected = aiDetectedMood === item.emoji;
+                      const isSelected = selectedMood === item.emoji;
+                      
+                      // Debug: Check if this is the AI detected mood
+                      if (isAISelected) {
+                        console.log('Found AI mood in UI:', item.emoji, 'isAISelected:', isAISelected, 'isSelected:', isSelected);
+                      }
+                      
+                      return (
                       <div key={item.mood} className="relative group">
                         <button
                           type="button"
@@ -827,13 +795,15 @@ export default function NewEntry() {
                             setIsMoodAuto(false);
                           }}
                           className={`p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
-                            selectedMood === item.emoji 
-                              ? isDarkMode
-                                ? 'border-purple-500 bg-purple-900/50 shadow-lg'
-                                : 'border-purple-500 bg-purple-50 shadow-lg'
-                              : isDarkMode
-                                ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
-                                : 'border-gray-200 hover:border-gray-300 bg-white/50'
+                            aiDetectedMood === item.emoji
+                              ? 'border-purple-500 bg-purple-500 text-white shadow-lg'
+                              : selectedMood === item.emoji
+                                ? isDarkMode
+                                  ? 'border-purple-500 bg-purple-900/50 shadow-lg'
+                                  : 'border-purple-500 bg-purple-50 shadow-lg'
+                                : isDarkMode
+                                  ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
+                                  : 'border-gray-200 hover:border-gray-300 bg-white/50'
                           }`}
                         >
                           <span className="text-xl">{item.emoji}</span>
@@ -852,7 +822,8 @@ export default function NewEntry() {
                           }`}></div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 
@@ -878,165 +849,6 @@ export default function NewEntry() {
                     />
                     <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>High</span>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Category Selection */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <label htmlFor="category" className={`text-lg font-semibold ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}>
-                Category
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowAddCategory(true)}
-                className={`px-3 py-1 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 ${
-                  isDarkMode
-                    ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
-                    : "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                }`}
-              >
-                + Add Category
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-              {categories.map((category: {
-                id: string;
-                name: string;
-                color: string;
-              }) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                    selectedCategory === category.id
-                      ? 'border-purple-500 shadow-lg'
-                      : isDarkMode
-                        ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/50'
-                  }`}
-                  style={{
-                    backgroundColor: selectedCategory === category.id 
-                      ? `${category.color}20` 
-                      : undefined
-                  }}
-                >
-                  <div className="flex items-center justify-center space-x-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: category.color }}
-                    ></div>
-                    <span className={`text-sm font-medium ${
-                      isDarkMode ? "text-white" : "text-gray-900"
-                    }`}>
-                      {category.name}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Add Category Modal */}
-          {showAddCategory && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className={`w-full max-w-md p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-                isDarkMode 
-                  ? "bg-slate-800/90 border-slate-700" 
-                  : "bg-white/90 border-gray-200"
-              }`}>
-                <h3 className={`text-xl font-bold mb-4 ${
-                  isDarkMode ? "text-white" : "text-gray-900"
-                }`}>
-                  Add New Category
-                </h3>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}>
-                    Category Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Enter category name..."
-                    className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      isDarkMode
-                        ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
-                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                    }`}
-                    maxLength={50}
-                  />
-                </div>
-                
-                <div className="mb-6">
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}>
-                    Category Color
-                  </label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {predefinedColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setNewCategoryColor(color)}
-                        className={`w-full h-10 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
-                          newCategoryColor === color
-                            ? 'border-purple-500 shadow-lg'
-                            : 'border-gray-300'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-2">
-                    <input
-                      type="color"
-                      value={newCategoryColor}
-                      onChange={(e) => setNewCategoryColor(e.target.value)}
-                      className={`w-full h-10 rounded-lg cursor-pointer ${
-                        isDarkMode ? "bg-slate-700" : "bg-gray-100"
-                      }`}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddCategory(false);
-                      setNewCategoryName('');
-                      setNewCategoryColor('#6366f1');
-                    }}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-200 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={addNewCategory}
-                    disabled={!newCategoryName.trim()}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      !newCategoryName.trim()
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
-                    }`}
-                  >
-                    Add Category
-                  </button>
                 </div>
               </div>
             </div>
@@ -1116,6 +928,59 @@ export default function NewEntry() {
               )}
             </div>
           </div>
+
+          {/* AI Tag Suggestions */}
+          {showTagSuggestions && aiSuggestedTags.length > 0 && (
+            <div className={`mb-8 p-4 rounded-xl border transition-all duration-300 ${
+              isDarkMode 
+                ? "bg-purple-900/20 border-purple-700" 
+                : "bg-purple-50 border-purple-200"
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`text-lg font-semibold ${
+                  isDarkMode ? "text-white" : "text-gray-900"
+                }`}>
+                  🏷️ AI Suggested Tags
+                </h3>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  isDarkMode ? "bg-purple-800/50 text-purple-300" : "bg-purple-200 text-purple-700"
+                }`}>
+                  AI-generated
+                </span>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {aiSuggestedTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        if (!tags.includes(tag) && tags.length < 5) {
+                          setTags([...tags, tag]);
+                        }
+                      }}
+                      disabled={tags.includes(tag)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                        tags.includes(tag)
+                          ? 'bg-green-500 text-white cursor-not-allowed'
+                          : isDarkMode
+                            ? 'bg-purple-800/50 text-purple-300 hover:bg-purple-700/50 border border-purple-600'
+                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
+                      }`}
+                    >
+                      {tags.includes(tag) ? '✓ ' : ''}{tag}
+                    </button>
+                  ))}
+                </div>
+                <p className={`text-xs ${
+                  isDarkMode ? "text-purple-300" : "text-purple-700"
+                }`}>
+                  Click to add tags to your entry (max 5 tags total)
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
-export async function createEntry(title: string, content: string, mood: string, categoryId: string, tags: string[], moodIntensity: number) {
+export async function createEntry(title: string, content: string, mood: string, tags: string[], moodIntensity: number) {
   try {
     const supabase = await createClient();
     
@@ -14,21 +14,6 @@ export async function createEntry(title: string, content: string, mood: string, 
       return { error: 'You must be logged in to create an entry' };
     }
     
-    // Insert default categories for this user if they don't exist
-    await supabase.rpc('insert_default_categories', { p_user_id: user.id });
-    
-    // Get the 'Personal' category ID for default if no category provided
-    let finalCategoryId = categoryId;
-    if (!finalCategoryId) {
-      const { data: categoryData } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('name', 'Personal')
-        .single();
-      finalCategoryId = categoryData?.id || null;
-    }
-    
     // Create entry with server-side user context
     const { data: entryData, error: entryError } = await supabase
       .from('entries')
@@ -37,7 +22,6 @@ export async function createEntry(title: string, content: string, mood: string, 
         title,
         content,
         mood,
-        category_id: finalCategoryId,
         tags
       }])
       .select('id')
