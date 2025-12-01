@@ -20,6 +20,8 @@ export async function getMoodStats() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     
+    console.log('Raw moods data:', data);
+    
     if (error) {
       console.error('Database error:', error);
       return { error: 'Failed to fetch mood stats' };
@@ -27,14 +29,31 @@ export async function getMoodStats() {
     
     // Calculate average intensity
     const moods = data || [];
-    const averageIntensity = moods.length > 0 
-      ? moods.reduce((sum, mood) => sum + mood.intensity, 0) / moods.length 
-      : 0;
+    console.log('Processed moods:', moods);
+    console.log('Number of moods:', moods.length);
     
-    return { 
-      averageIntensity: Math.round(averageIntensity * 10) / 10, // Round to 1 decimal
-      totalMoods: moods.length
-    };
+    if (moods.length > 0) {
+      const intensities = moods.map(mood => mood.intensity);
+      console.log('All intensities:', intensities);
+      
+      const sum = moods.reduce((sum, mood) => sum + mood.intensity, 0);
+      const averageIntensity = sum / moods.length;
+      
+      console.log('Sum of intensities:', sum);
+      console.log('Calculated average:', averageIntensity);
+      console.log('Rounded average:', Math.round(averageIntensity * 10) / 10);
+      
+      return { 
+        averageIntensity: Math.round(averageIntensity * 10) / 10, // Round to 1 decimal
+        totalMoods: moods.length
+      };
+    } else {
+      console.log('No mood data found');
+      return { 
+        averageIntensity: 0,
+        totalMoods: 0
+      };
+    }
   } catch (error) {
     console.error('Server error:', error);
     return { error: 'Failed to fetch mood stats' };
