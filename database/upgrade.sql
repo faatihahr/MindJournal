@@ -150,6 +150,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Add AI analysis fields to weekly_insights table
+DO $$
+BEGIN
+  -- Add emotional_state column if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'weekly_insights' AND column_name = 'emotional_state'
+  ) THEN
+    ALTER TABLE weekly_insights ADD COLUMN emotional_state TEXT;
+  END IF;
+
+  -- Add patterns column if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'weekly_insights' AND column_name = 'patterns'
+  ) THEN
+    ALTER TABLE weekly_insights ADD COLUMN patterns TEXT[] DEFAULT '{}';
+  END IF;
+
+  -- Add recommendations column if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'weekly_insights' AND column_name = 'recommendations'
+  ) THEN
+    ALTER TABLE weekly_insights ADD COLUMN recommendations TEXT[] DEFAULT '{}';
+  END IF;
+END $$;
+
+-- Create indexes for new AI fields
+CREATE INDEX IF NOT EXISTS idx_weekly_insights_emotional_state 
+ON weekly_insights(emotional_state) WHERE emotional_state IS NOT NULL;
+
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;

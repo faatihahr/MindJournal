@@ -180,11 +180,6 @@ export default function NewEntry() {
           setMoodIntensity(moodData.intensity);
         }
         setIsMoodAuto(true);
-        // Debug: Verify both states are set
-        setTimeout(() => {
-          console.log('After setting - selectedMood:', selectedMood);
-          console.log('After setting - aiDetectedMood:', aiDetectedMood);
-        }, 100);
       }
       
       // Set tag suggestions
@@ -746,113 +741,83 @@ export default function NewEntry() {
             </p>
           </div>
 
-          {/* AI Detected Mood (shown after tidy up) */}
-          {(isMoodAuto || selectedMood !== '😊' || moodIntensity !== 5) && (
-            <div className={`mb-8 p-4 rounded-xl border transition-all duration-300 ${
-              isDarkMode 
-                ? "bg-purple-900/20 border-purple-700" 
-                : "bg-purple-50 border-purple-200"
-            }`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-semibold ${
-                  isDarkMode ? "text-white" : "text-gray-900"
-                }`}>
-                  🤖 AI Detected Mood
-                </h3>
-                {isMoodAuto && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    isDarkMode ? "bg-purple-800/50 text-purple-300" : "bg-purple-200 text-purple-700"
-                  }`}>
-                    Auto-detected
+          {/* Mood Selection */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <label className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  How are you feeling?
+                </label>
+                {aiDetectedMood && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>
+                    AI detected: {aiDetectedMood}
                   </span>
                 )}
               </div>
-              
-              <div className="space-y-4">
-                {/* Mood Selection */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}>
-                    How are you feeling?
-                  </label>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-                    {moodOptions.map((item) => {
-                      const isAISelected = aiDetectedMood === item.emoji;
-                      const isSelected = selectedMood === item.emoji;
-                      
-                      // Debug: Check if this is the AI detected mood
-                      if (isAISelected) {
-                        console.log('Found AI mood in UI:', item.emoji, 'isAISelected:', isAISelected, 'isSelected:', isSelected);
-                      }
-                      
-                      return (
-                      <div key={item.mood} className="relative group">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedMood(item.emoji);
-                            setIsMoodAuto(false);
-                          }}
-                          className={`p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
-                            aiDetectedMood === item.emoji
-                              ? 'border-purple-500 bg-purple-500 text-white shadow-lg'
-                              : selectedMood === item.emoji
-                                ? isDarkMode
-                                  ? 'border-purple-500 bg-purple-900/50 shadow-lg'
-                                  : 'border-purple-500 bg-purple-50 shadow-lg'
-                                : isDarkMode
-                                  ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
-                                  : 'border-gray-200 hover:border-gray-300 bg-white/50'
-                          }`}
-                        >
-                          <span className="text-xl">{item.emoji}</span>
-                        </button>
-                        {/* Tooltip */}
-                        <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
-                          isDarkMode 
-                            ? 'bg-slate-700 text-white border border-slate-600' 
-                            : 'bg-gray-800 text-white border border-gray-600'
-                        }`}>
-                          <div className="font-medium">{item.emoji} {item.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                          <div className="text-gray-300 text-xs mt-1">{item.definition.split(':')[1]?.trim() || item.definition}</div>
-                          {/* Arrow */}
-                          <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
-                            isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
-                          }`}></div>
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                {/* Mood Intensity */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}>
-                    Mood Intensity: <span className="font-semibold">{moodIntensity}/10</span>
-                  </label>
-                  <div className="flex items-center space-x-3">
-                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Low</span>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={moodIntensity}
-                      onChange={(e) => {
-                        setMoodIntensity(Number(e.target.value));
-                        setIsMoodAuto(false);
-                      }}
-                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                    />
-                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>High</span>
-                  </div>
-                </div>
+              <div className="flex items-center space-x-2">
+                <span className={`text-xs px-2 py-1 rounded-full ${isDarkMode ? 'bg-slate-700 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                  {moodIntensity}/10
+                </span>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={moodIntensity}
+                  onChange={(e) => setMoodIntensity(Number(e.target.value))}
+                  className="w-24 accent-purple-600"
+                />
               </div>
             </div>
-          )}
+            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+              {moodOptions.map((item) => {
+                const isAISelected = aiDetectedMood === item.emoji;
+                const isSelected = selectedMood === item.emoji;
+                
+                return (
+                  <div key={item.mood} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMood(item.emoji);
+                        setIsMoodAuto(false);
+                      }}
+                      className={`p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                        aiDetectedMood === item.emoji
+                          ? 'border-purple-500 bg-purple-500 text-white shadow-lg'
+                          : selectedMood === item.emoji
+                            ? isDarkMode
+                              ? 'border-purple-500 bg-purple-900/50 shadow-lg'
+                              : 'border-purple-500 bg-purple-50 shadow-lg'
+                            : isDarkMode
+                              ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
+                              : 'border-gray-200 hover:border-gray-300 bg-white/50'
+                      }`}
+                    >
+                      <span className="text-xl">{item.emoji}</span>
+                    </button>
+                    {/* Tooltip */}
+                    <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
+                      isDarkMode 
+                        ? 'bg-slate-700 text-white border border-slate-600' 
+                        : 'bg-gray-800 text-white border border-gray-600'
+                    }`}>
+                      <div className="font-medium">{item.emoji} {item.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                      <div className="text-gray-300 text-xs mt-1">{item.definition.split(':')[1]?.trim() || item.definition}</div>
+                      {aiDetectedMood === item.emoji && (
+                        <div className="mt-1 text-xs text-purple-300 font-medium">
+                          ✓ Detected by AI
+                        </div>
+                      )}
+                      {/* Arrow */}
+                      <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
+                        isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
+                      }`}></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Tags */}
           <div className="mb-8">

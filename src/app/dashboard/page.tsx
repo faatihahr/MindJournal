@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import { getUserEntries } from './actions';
 import { getMoodStats } from './stats-actions';
 import { DeleteButton } from './delete-button';
+import Link from 'next/link';
 import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
 import { MoodCalendar } from '@/components/mood-calendar';
 import { DateEntriesModal } from '@/components/date-entries-modal';
+import { InsightsModal } from '@/components/insights-modal';
+import { StreakAnimation } from '@/components/streak-animation';
 
 type JournalEntry = {
   id: string;
@@ -23,6 +26,15 @@ type JournalEntry = {
   updated_at: string;
   relevanceScore?: number;
 };
+
+// Define type for AI weekly insights
+interface AIWeeklyInsights {
+  emotionalState: string;
+  patterns: string[];
+  recommendations: string[];
+  topThemes: string[];
+  summary: string;
+}
 
 const moodOptions = [
   { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated', label: 'Very Happy' },
@@ -53,12 +65,11 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [sortBy, setSortBy] = useState('newest');
   const [selectedMood, setSelectedMood] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [sortBy, setSortBy] = useState('relevance');
   const [searchResults, setSearchResults] = useState<JournalEntry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -67,6 +78,14 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEntries, setSelectedDateEntries] = useState<JournalEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showStreakAnimation, setShowStreakAnimation] = useState(false);
+  const [aiGuidance, setAiGuidance] = useState<{ [key: string]: string }>({}); 
+  const [loadingGuidance, setLoadingGuidance] = useState<{ [key: string]: boolean }>({}); 
+  const [showInsightsModal, setShowInsightsModal] = useState(false);
+  const [showAIInsightsModal, setShowAIInsightsModal] = useState(false);
+  const [aiWeeklyInsights, setAiWeeklyInsights] = useState<AIWeeklyInsights | null>(null);
+  const [loadingAIInsights, setLoadingAIInsights] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -309,12 +328,148 @@ export default function Dashboard() {
   
   const stats = calculateStats();
 
+  // Generate AI Weekly Insights
+  const generateAIWeeklyInsights = async () => {
+    setLoadingAIInsights(true);
+    try {
+      // Get entries from last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const recentEntries = entries.filter(entry => 
+        new Date(entry.created_at) >= sevenDaysAgo
+      );
+      
+      if (recentEntries.length === 0) {
+        setAiWeeklyInsights({
+          emotionalState: "No data available",
+          patterns: ["No entries found from the last 7 days"],
+          recommendations: ["Start journaling to get your weekly insights"],
+          topThemes: ["No data"],
+          summary: "No entries found from the last 7 days. Start journaling to get your weekly insights!"
+        });
+        return;
+      }
+      
+      // Combine all content from recent entries
+      const combinedContent = recentEntries.map(entry => entry.content).join('\n\n');
+      
+      const response = await fetch('/api/ai/weekly-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          entries: recentEntries,
+          timeframe: '7 days'
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response:', data);
+        console.log('Type of insights:', typeof data.insights);
+        
+        // Handle both string and object responses
+        let parsedInsights;
+        if (typeof data.insights === 'string') {
+          try {
+            parsedInsights = JSON.parse(data.insights);
+            console.log('Parsed insights:', parsedInsights);
+          } catch (e) {
+            console.log('JSON parse failed, using fallback');
+            // If parsing fails, create fallback object
+            parsedInsights = {
+              emotionalState: "Analysis completed",
+              patterns: ["Weekly review generated"],
+              recommendations: ["Continue journaling for better insights"],
+              topThemes: ["Personal reflection"],
+              summary: data.insights
+            };
+          }
+        } else {
+          parsedInsights = data.insights;
+          console.log('Using insights directly:', parsedInsights);
+        }
+        
+        console.log('Final insights to set:', parsedInsights);
+        setAiWeeklyInsights(parsedInsights);
+      } else {
+        setAiWeeklyInsights({
+          emotionalState: "Analysis unavailable",
+          patterns: ["Unable to generate insights at this time"],
+          recommendations: ["Please try again later"],
+          topThemes: ["System error"],
+          summary: "Unable to generate insights at this time. Please try again later."
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI weekly insights:', error);
+      setAiWeeklyInsights({
+        emotionalState: "Analysis failed",
+        patterns: ["An error occurred while generating insights"],
+        recommendations: ["Please try again"],
+        topThemes: ["System error"],
+        summary: "An error occurred while generating insights. Please try again."
+      });
+    } finally {
+      setLoadingAIInsights(false);
+    }
+  };
+
+  // Generate AI guidance for entries
+  const generateAIGuidance = async (entryId: string, content: string) => {
+    console.log('generateAIGuidance called', { entryId, content });
+    if (aiGuidance[entryId]) return;
+    
+    try {
+      setLoadingGuidance(prev => ({ ...prev, [entryId]: true }));
+      console.log('Making API call...');
+      const response = await fetch('/api/ai/entry-guidance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry: { content } }),
+      });
+      
+      console.log('API response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response data:', data);
+        const guidanceText = `${data.summary}\n\n${data.courage}\n\nTips: ${data.advice.join(', ')}\n\nChallenge: ${data.challenge}`;
+        setAiGuidance(prev => ({ ...prev, [entryId]: guidanceText }));
+        console.log('AI guidance set for entry:', entryId);
+      } else {
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+      }
+    } catch (error) {
+      console.error('Error generating AI guidance:', error);
+    } finally {
+      setLoadingGuidance(prev => ({ ...prev, [entryId]: false }));
+    }
+  };
+
+  // Trigger streak animation when streak increases
+  useEffect(() => {
+    const currentStreak = stats.currentStreak;
+    const previousStreak = parseInt(localStorage.getItem('previousStreak') || '0');
+    
+    if (currentStreak > previousStreak && currentStreak > 0) {
+      setShowStreakAnimation(true);
+      localStorage.setItem('previousStreak', currentStreak.toString());
+      
+      // Hide animation after 3 seconds
+      setTimeout(() => setShowStreakAnimation(false), 3000);
+    }
+  }, [stats.currentStreak]);
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       isDarkMode 
         ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
         : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
     }`}>
+      {/* Streak Animation */}
+      <StreakAnimation show={showStreakAnimation} isDarkMode={isDarkMode} />
       {/* Header */}
       <header className="relative z-10">
         <nav className="container mx-auto px-6 py-6">
@@ -426,16 +581,110 @@ export default function Dashboard() {
       <main className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className={`text-3xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+          <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
             Welcome back! 👋
           </h1>
-          <p className={`text-lg ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+          <p className={`text-base md:text-lg ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
             How are you feeling today? Let's capture your thoughts.
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        {/* Mobile Quick Actions - Priority on mobile */}
+        <div className="md:hidden mb-6">
+          <div className="grid grid-cols-3 gap-3">
+            <button 
+              onClick={() => setShowCalendar(!showCalendar)}
+              className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
+                isDarkMode 
+                  ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                  : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+              } ${showCalendar ? 'ring-2 ring-purple-500' : ''}`}
+            >
+              <FiCalendar className={`text-lg mb-1 mx-auto ${
+                isDarkMode ? "text-purple-400" : "text-purple-600"
+              }`} />
+              <p className="text-xs font-medium">Calendar</p>
+            </button>
+            
+            <button 
+              className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
+                isDarkMode 
+                  ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                  : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+              }`}
+            >
+              <FiTrendingUp className={`text-lg mb-1 mx-auto ${
+                isDarkMode ? "text-blue-400" : "text-blue-600"
+              }`} />
+              <p className="text-xs font-medium">Insights</p>
+            </button>
+            
+            <a
+              href="/entries/new"
+              className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
+                isDarkMode 
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700" 
+                  : "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700"
+              }`}
+            >
+              <FiPlus className={`text-lg mb-1 mx-auto`} />
+              <p className="text-xs font-medium">New</p>
+            </a>
+          </div>
+        </div>
+
+        {/* Mobile Compact Stats */}
+        <div className="md:hidden mb-6">
+          <div className="grid grid-cols-3 gap-3">
+            <div className={`p-3 rounded-xl ${
+              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+            }`}>
+              <p className={`text-xs font-medium mb-1 ${
+                isDarkMode ? "text-gray-400" : "text-gray-600"
+              }`}>
+                Total
+              </p>
+              <p className={`text-lg font-bold ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}>
+                {entries.length}
+              </p>
+            </div>
+
+            <div className={`p-3 rounded-xl ${
+              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+            }`}>
+              <p className={`text-xs font-medium mb-1 ${
+                isDarkMode ? "text-gray-400" : "text-gray-600"
+              }`}>
+                Streak
+              </p>
+              <p className={`text-lg font-bold ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}>
+                {stats.currentStreak}
+              </p>
+            </div>
+
+            <div className={`p-3 rounded-xl ${
+              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+            }`}>
+              <p className={`text-xs font-medium mb-1 ${
+                isDarkMode ? "text-gray-400" : "text-gray-600"
+              }`}>
+                Mood
+              </p>
+              <p className={`text-lg font-bold ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}>
+                {stats.moodAverage > 0 ? `${stats.moodAverage.toFixed(1)}` : '-'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Stats Cards */}
+        <div className="hidden md:grid md:grid-cols-2 gap-6 mb-8">
           {/* Total Entries Card */}
           <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
             isDarkMode 
@@ -513,38 +762,56 @@ export default function Dashboard() {
           </div>
 
           {/* AI Insights Card */}
-          <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
-            isDarkMode 
-              ? "bg-slate-800/50 border-slate-700" 
-              : "bg-white/70 border-gray-200"
-          }`}>
+          <Link
+            href="/insights"
+            className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 cursor-pointer block ${
+              isDarkMode 
+                ? "bg-slate-800/50 border-slate-700 hover:bg-slate-800/70" 
+                : "bg-white/70 border-gray-200 hover:bg-white/90"
+            }`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 AI Insights
               </h3>
               <span className="text-xl">✨</span>
             </div>
-            <div className={`text-3xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-              23
-            </div>
-            <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
-              New patterns found
-            </p>
-          </div>
+            
+            {loadingAIInsights ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500 mr-2"></div>
+                <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
+                  Analyzing...
+                </p>
+              </div>
+            ) : aiWeeklyInsights ? (
+              <>
+                <div className={`text-3xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                  {aiWeeklyInsights.patterns?.length || 0}
+                </div>
+                <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
+                  {aiWeeklyInsights.patterns?.length === 1 ? 'Pattern found' : 'Patterns found'}
+                </p>
+              </>
+            ) : (
+              <div className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                Click to view insights
+              </div>
+            )}
+          </Link>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <div className="relative max-w-2xl">
-            <FiSearch className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${
+        {/* Search Bar - Mobile Optimized */}
+        <div className="mb-6">
+          <div className="relative">
+            <FiSearch className={`absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 ${
               isDarkMode ? "text-gray-400" : "text-gray-500"
             }`} />
             <input
               type="text"
-              placeholder="Search your entries..."
+              placeholder="Search entries..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-12 pr-12 py-4 rounded-2xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+              className={`w-full pl-9 md:pl-12 pr-10 md:pr-12 py-2.5 md:py-4 rounded-xl md:rounded-2xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                 isDarkMode 
                   ? "bg-slate-800/50 border-slate-600 text-white placeholder-gray-400" 
                   : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500"
@@ -552,13 +819,13 @@ export default function Dashboard() {
             />
             <button 
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-all duration-200 ${
+              className={`absolute right-2 md:right-4 top-1/2 transform -translate-y-1/2 p-1.5 md:p-2 rounded-lg transition-all duration-200 ${
                 isDarkMode 
                   ? "text-gray-400 hover:text-gray-300 hover:bg-slate-700" 
                   : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
-              <FiFilter className="text-xl" />
+              <FiFilter className="text-sm md:text-xl" />
             </button>
           </div>
         </div>
@@ -718,8 +985,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
+        {/* Desktop Quick Actions */}
+        <div className="hidden md:grid md:grid-cols-3 gap-4 mb-8">
           <button 
             onClick={() => setShowCalendar(!showCalendar)}
             className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
@@ -730,11 +997,13 @@ export default function Dashboard() {
             <FiCalendar className={`text-2xl mb-2 ${isDarkMode ? "text-purple-400" : "text-purple-600"}`} />
             <p className="font-medium">{showCalendar ? 'Hide Calendar' : 'View Calendar'}</p>
           </button>
-          <button className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
-            isDarkMode 
-              ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
-              : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
-          }`}>
+          <button 
+            onClick={() => setShowInsightsModal(true)}
+            className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+            }`}>
             <FiTrendingUp className={`text-2xl mb-2 ${isDarkMode ? "text-blue-400" : "text-blue-600"}`} />
             <p className="font-medium">View Analytics</p>
           </button>
@@ -777,49 +1046,15 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {displayEntries.slice(0, 3).map((entry) => (
-                <div key={entry.id} className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
-                  isDarkMode 
-                    ? "bg-slate-800/50 border-slate-700" 
-                    : "bg-white/70 border-gray-200"
-                }`}>
+                <div key={entry.id} className={`p-4 md:p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-white/70 border-gray-200"}`}>
                   <a href={`/entries/${entry.id}`} className="block">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="relative group">
-                            <span className="text-2xl">{entry.mood || '😊'}</span>
-                          {entry.relevanceScore && (
-                            <span className={`text-xs px-2 py-1 rounded-full ml-2 ${
-                              isDarkMode ? "bg-purple-900/50 text-purple-300" : "bg-purple-100 text-purple-700"
-                            }`}>
-                              Score: {entry.relevanceScore.toFixed(1)}
-                            </span>
-                          )}
-                            {/* Tooltip */}
-                            {entry.mood && (() => {
-                              const moodInfo = getMoodInfo(entry.mood);
-                              if (!moodInfo) return null;
-                              return (
-                                <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
-                                  isDarkMode 
-                                    ? 'bg-slate-700 text-white border border-slate-600' 
-                                    : 'bg-gray-800 text-white border border-gray-600'
-                                }`}>
-                                  <div className="font-medium">{moodInfo.emoji} {moodInfo.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                                  <div className="text-gray-300 text-xs mt-1">{moodInfo.definition.split(':')[0]}</div>
-                                  {/* Arrow */}
-                                  <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
-                                    isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
-                                  }`}></div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                            {entry.title || 'Untitled Entry'}
-                          </h3>
+                        <div className="flex items-center space-x-2 mb-2 md:mb-3">
+                          <span className="text-lg md:text-2xl">{entry.mood || '😊'}</span>
+                          <h3 className={`text-base md:text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{entry.title || 'Untitled Entry'}</h3>
                         </div>
                         <div className="flex items-center space-x-2 mb-3">
                           <FiCalendar className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
@@ -831,7 +1066,7 @@ export default function Dashboard() {
                             })}
                           </time>
                         </div>
-                        <p className={`mb-3 line-clamp-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                        <p className={`text-sm md:text-base mb-2 md:mb-3 line-clamp-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                           {entry.content}
                         </p>
                         <div className="flex items-center space-x-2 mb-3">
@@ -871,6 +1106,21 @@ export default function Dashboard() {
                             );
                           })}
                         </div>
+                        {/* AI Guidance */}
+                        {aiGuidance[entry.id] && (
+                          <div className={`mt-3 p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? "bg-purple-900/20 border-purple-700/50" 
+                              : "bg-purple-50 border-purple-200"
+                          }`}>
+                            <div className="flex items-start space-x-2">
+                              <span className="text-sm">✨</span>
+                              <p className={`text-xs ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>
+                                {aiGuidance[entry.id]}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center space-x-2">
                           <span className="text-sm">✨</span>
                           <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
@@ -881,34 +1131,48 @@ export default function Dashboard() {
                       <FiChevronRight className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
                     </div>
                   </a>
+                  {/* AI Guidance Button - Bottom Right */}
+                  <div className="flex justify-end mt-3">
+                    <button 
+                      onClick={() => generateAIGuidance(entry.id, entry.content)} 
+                      disabled={loadingGuidance[entry.id]}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 shadow-md transform hover:scale-105 ${
+                        loadingGuidance[entry.id]
+                          ? 'bg-gray-400 text-white cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
+                      }`}
+                    >
+                      {loadingGuidance[entry.id] ? (
+                        <span className="flex items-center space-x-2">
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          <span>Generating...</span>
+                        </span>
+                      ) : (
+                        <span>{aiGuidance[entry.id] ? 'Refresh AI Guidance' : 'Get AI Guidance'}</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* AI Assistant Card */}
-        <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-          isDarkMode 
-            ? "bg-purple-900/30 border-purple-700" 
-            : "bg-purple-100/50 border-purple-200"
-        }`}>
-          <div className="flex items-center space-x-3 mb-4">
-            <span className="text-2xl">✨</span>
-            <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-              AI Assistant
-            </h3>
-          </div>
-          <p className={`mb-4 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-            "I noticed you've been writing about gratitude often this week. Would you like me to generate a gratitude summary?"
-          </p>
-          <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200">
-            Generate Summary
-          </button>
+        {/* Mobile Floating Action Button */}
+        <div className="md:hidden fixed bottom-6 right-6 z-50">
+          <a
+            href="/entries/new"
+            className="flex items-center justify-center w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
+          >
+            <FiPlus className="text-xl" />
+          </a>
         </div>
 
-        {/* Write New Entry Button */}
-        <div className="fixed bottom-8 right-8">
+        {/* Desktop Floating Action Button */}
+        <div className="hidden md:block fixed bottom-8 right-8">
           <a
             href="/entries/new"
             className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
@@ -933,8 +1197,8 @@ export default function Dashboard() {
             ? "bg-slate-800/50 border-slate-700" 
             : "bg-white/70 border-gray-200"
         }`}>
-          <span className="text-4xl mb-4 block">💭</span>
-          <blockquote className={`text-lg italic mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+          <span className="text-3xl md:text-4xl mb-4 block">💭</span>
+          <blockquote className={`text-base md:text-lg italic mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
             "Writing is the painting of the voice."
           </blockquote>
           <cite className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
@@ -942,6 +1206,160 @@ export default function Dashboard() {
           </cite>
         </div>
       </main>
+
+      {/* AI Weekly Insights Modal */}
+      <InsightsModal 
+        isOpen={showAIInsightsModal}
+        onClose={() => setShowAIInsightsModal(false)}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* Weekly Insights Modal */}
+      {showInsightsModal && (
+        <>
+          {/* Blur Background */}
+          <div 
+            className="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-30 z-40" 
+            onClick={() => setShowInsightsModal(false)}
+          />
+          
+          {/* Modal Content */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div 
+              className={`w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl transform transition-all md:mx-auto mx-4 ${
+                isDarkMode ? 'bg-slate-800' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+            {/* Modal Header */}
+            <div className={`p-6 border-b ${
+              isDarkMode ? 'border-slate-700' : 'border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Weekly Insights
+                </h2>
+                <button
+                  onClick={() => setShowInsightsModal(false)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'text-gray-400 hover:text-white hover:bg-slate-700' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <FiX className="text-xl" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 md:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {/* Mood Stats */}
+                <div className={`p-4 md:p-6 rounded-xl ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-gray-50'
+                }`}>
+                  <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Mood Analysis
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Average Mood</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {stats.moodAverage > 0 ? `${stats.moodAverage.toFixed(1)}/10` : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Total Entries</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {entries.length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Current Streak</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {stats.currentStreak} days
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Weekly Progress */}
+                <div className={`p-4 md:p-6 rounded-xl ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-gray-50'
+                }`}>
+                  <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Weekly Progress
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>This Week</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {stats.entriesThisWeek} entries
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Most Active Mood</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        😊 Happy
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Journaling Consistency</span>
+                      <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {stats.currentStreak >= 7 ? 'Excellent' : 
+                         stats.currentStreak >= 3 ? 'Good' : 'Needs Improvement'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Entries Summary */}
+              <div className={`mt-6 p-4 md:p-6 rounded-xl ${
+                isDarkMode ? 'bg-slate-700' : 'bg-gray-50'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Recent Activity
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                  <div className={`text-center p-3 md:p-4 rounded-lg ${
+                    isDarkMode ? 'bg-slate-600' : 'bg-white'
+                  }`}>
+                    <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {entries.slice(0, 7).length}
+                    </div>
+                    <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      Entries this week
+                    </div>
+                  </div>
+                  <div className={`text-center p-3 md:p-4 rounded-lg ${
+                    isDarkMode ? 'bg-slate-600' : 'bg-white'
+                  }`}>
+                    <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {stats.moodAverage > 0 ? Math.round(stats.moodAverage * 10) : 0}%
+                    </div>
+                    <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      Positivity Rate
+                    </div>
+                  </div>
+                  <div className={`text-center p-3 md:p-4 rounded-lg ${
+                    isDarkMode ? 'bg-slate-600' : 'bg-white'
+                  }`}>
+                    <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      🔥
+                    </div>
+                    <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {stats.currentStreak} day streak
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </>
+      )}
     </div>
   );
 }

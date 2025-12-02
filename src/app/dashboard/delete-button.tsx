@@ -5,9 +5,10 @@ import { useState } from 'react';
 interface DeleteButtonProps {
   entryId: string;
   onDelete?: () => void;
+  isDarkMode?: boolean;
 }
 
-export function DeleteButton({ entryId, onDelete }: DeleteButtonProps) {
+export function DeleteButton({ entryId, onDelete, isDarkMode = false }: DeleteButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -68,7 +69,11 @@ export function DeleteButton({ entryId, onDelete }: DeleteButtonProps) {
             e.stopPropagation();
             setShowConfirm(true);
           }}
-          className="inline-flex items-center p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+          className={`inline-flex items-center p-2 rounded-md transition-colors ${
+            isDarkMode 
+              ? 'text-red-400 hover:text-red-300 hover:bg-red-900/50' 
+              : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+          }`}
           title="Delete entry"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,8 +81,14 @@ export function DeleteButton({ entryId, onDelete }: DeleteButtonProps) {
           </svg>
         </button>
       ) : (
-        <div className="absolute right-0 top-0 z-10 bg-white border border-gray-200 rounded-md shadow-lg p-3 min-w-[160px]">
-          <p className="text-sm text-gray-700 mb-3">Delete this entry?</p>
+        <div className={`absolute right-0 top-0 z-10 border rounded-md shadow-lg p-3 min-w-[160px] ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <p className={`text-sm mb-3 ${
+            isDarkMode ? 'text-gray-200' : 'text-gray-700'
+          }`}>Delete this entry?</p>
           <div className="flex space-x-2">
             <button
               onClick={(e) => {
@@ -86,19 +97,21 @@ export function DeleteButton({ entryId, onDelete }: DeleteButtonProps) {
                 handleCancel();
               }}
               disabled={isDeleting}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className={`flex-1 px-2 py-1 text-xs border rounded ${isDeleting ? 'opacity-50' : ''} ${
+                isDarkMode
+                  ? 'border-gray-600 text-gray-200 hover:bg-gray-700/50'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
             >
               Cancel
             </button>
             <button
               onClick={(e) => {
                 e.preventDefault();
-                e.stopPropagation();
                 handleDelete(e);
               }}
               disabled={isDeleting}
-              className="flex-1 px-2 py-1 text-xs border border-red-300 rounded text-red-700 hover:bg-red-50 disabled:opacity-50"
-            >
+              className={`flex-1 px-2 py-1 text-xs border rounded ${isDeleting ? 'opacity-50' : ''} ${isDarkMode ? 'border-red-700 text-red-400 hover:bg-red-900/50' : 'border-red-300 text-red-700 hover:bg-red-50'}`}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </button>
           </div>
