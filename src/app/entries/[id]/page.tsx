@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEntry, updateEntry, deleteEntry } from './actions';
-import { FiArrowLeft, FiEdit3, FiTrash2, FiSave, FiX, FiMoon, FiSun, FiCalendar, FiTag } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit3, FiTrash2, FiSave, FiX, FiMoon, FiSun, FiCalendar, FiTag, FiDownload } from 'react-icons/fi';
+import { ExportModal } from '@/components/export-modal';
 
 type JournalEntry = {
   id: string;
@@ -70,6 +71,7 @@ export default function EntryDetail() {
   const [editTags, setEditTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [showMoodPicker, setShowMoodPicker] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -653,6 +655,17 @@ export default function EntryDetail() {
                     <FiEdit3 className="w-5 h-5" />
                   </button>
                   <button
+                    onClick={() => setShowExportModal(true)}
+                    className={`p-2 rounded-lg transition-all duration-200 ${
+                      isDarkMode 
+                        ? "text-green-400 hover:text-green-300 hover:bg-green-900/50" 
+                        : "text-green-600 hover:text-green-800 hover:bg-green-50"
+                    }`}
+                    title="Export to PDF"
+                  >
+                    <FiDownload className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={() => setShowDeleteModal(true)}
                     className={`p-2 rounded-lg transition-all duration-200 ${
                       isDarkMode 
@@ -995,6 +1008,14 @@ export default function EntryDetail() {
           </div>
         </div>
       )}
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        entry={entry}
+        exportType="single"
+      />
     </div>
   );
 }

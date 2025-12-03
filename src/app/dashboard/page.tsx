@@ -6,12 +6,14 @@ import { getMoodStats } from './stats-actions';
 import { formatDate } from './date-utils';
 import { DeleteButton } from './delete-button';
 import Link from 'next/link';
-import { FiBook, FiMoon, FiSun, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
+import { FiBook, FiMoon, FiSun, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX, FiDownload, FiCheckSquare, FiSquare } from 'react-icons/fi';
 import { MoodCalendar } from '@/components/mood-calendar';
 import { DateEntriesModal } from '@/components/date-entries-modal';
 import { InsightsModal } from '@/components/insights-modal';
 import { MoodTrackerModal } from '@/components/mood-tracker-modal';
 import { StreakAnimation } from '@/components/streak-animation';
+import { ExportModal } from '@/components/export-modal';
+import { DateRangeExportModal } from '@/components/date-range-export-modal';
 
 type JournalEntry = {
   id: string;
@@ -92,6 +94,10 @@ export default function Dashboard() {
   const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const [dailyQuote, setDailyQuote] = useState<{ quote: string; author: string; theme: string; relevance: string; date: string } | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showDateRangeExportModal, setShowDateRangeExportModal] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -305,6 +311,30 @@ export default function Dashboard() {
     setDateTo('');
     setSortBy('relevance');
     setSearchQuery('');
+  };
+
+  // Handle entry selection for export
+  const toggleEntrySelection = (entryId: string) => {
+    const newSelection = new Set(selectedEntries);
+    if (newSelection.has(entryId)) {
+      newSelection.delete(entryId);
+    } else {
+      newSelection.add(entryId);
+    }
+    setSelectedEntries(newSelection);
+  };
+
+  const selectAllEntries = () => {
+    const allIds = displayEntries.map(entry => entry.id);
+    setSelectedEntries(new Set(allIds));
+  };
+
+  const clearEntrySelection = () => {
+    setSelectedEntries(new Set());
+  };
+
+  const getSelectedEntriesData = () => {
+    return displayEntries.filter(entry => selectedEntries.has(entry.id));
   };
 
   // Use search results if filters are applied or searching, otherwise use filtered entries
@@ -522,6 +552,11 @@ export default function Dashboard() {
       setTimeout(() => setShowStreakAnimation(false), 3000);
     }
   }, [stats.currentStreak]);
+
+  // Debug AI insights
+  useEffect(() => {
+    console.log('Dashboard Debug - aiWeeklyInsights:', aiWeeklyInsights);
+  }, [aiWeeklyInsights]);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
@@ -1030,7 +1065,7 @@ export default function Dashboard() {
         )}
 
         {/* Desktop Quick Actions */}
-        <div className="hidden md:grid md:grid-cols-3 gap-4 mb-8">
+        <div className="hidden md:grid md:grid-cols-4 gap-4 mb-8">
           <button 
             onClick={() => setShowCalendar(!showCalendar)}
             className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
@@ -1061,6 +1096,58 @@ export default function Dashboard() {
             <FiHeart className={`text-2xl mb-2 ${isDarkMode ? "text-pink-400" : "text-pink-600"}`} />
             <p className="font-medium">Mood Tracker</p>
           </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportOptions(!showExportOptions)}
+              className={`w-full p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
+                isDarkMode 
+                  ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                  : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+              }`}>
+              <FiDownload className={`text-2xl mb-2 ${isDarkMode ? "text-green-400" : "text-green-600"}`} />
+              <p className="font-medium">Export PDF</p>
+            </button>
+            
+            {/* Export Options Dropdown */}
+            {showExportOptions && (
+              <div className={`absolute top-full left-0 mt-2 w-48 rounded-lg shadow-lg border z-10 ${
+                isDarkMode 
+                  ? "bg-slate-800 border-slate-700" 
+                  : "bg-white border-gray-200"
+              }`}>
+                <button
+                  onClick={() => {
+                    setShowExportOptions(false);
+                    setShowDateRangeExportModal(true);
+                  }}
+                  className={`w-full text-left px-4 py-3 flex items-center space-x-2 transition-colors duration-200 ${
+                    isDarkMode 
+                      ? "text-gray-300 hover:bg-slate-700" 
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FiCalendar className="text-lg" />
+                  <span>Date Range</span>
+                </button>
+                {selectedEntries.size > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowExportOptions(false);
+                      setShowExportModal(true);
+                    }}
+                    className={`w-full text-left px-4 py-3 flex items-center space-x-2 transition-colors duration-200 ${
+                      isDarkMode 
+                        ? "text-gray-300 hover:bg-slate-700" 
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <FiCheckSquare className="text-lg" />
+                    <span>Selected ({selectedEntries.size})</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Journal Entries */}
@@ -1092,113 +1179,189 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 md:space-y-4">
-              {displayEntries.slice(0, 3).map((entry) => (
-                <div key={entry.id} className={`p-4 md:p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-white/70 border-gray-200"}`}>
-                  <a href={`/entries/${entry.id}`} className="block">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2 md:mb-3">
-                          <span className="text-lg md:text-2xl">{entry.mood || '😊'}</span>
-                          <h3 className={`text-base md:text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{entry.title || 'Untitled Entry'}</h3>
-                        </div>
-                        <div className="flex items-center space-x-2 mb-3">
-                          <FiCalendar className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
-                          <time className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                            {formatDate(entry.created_at)}
-                          </time>
-                        </div>
-                        <p className={`text-sm md:text-base mb-2 md:mb-3 line-clamp-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                          {entry.content}
-                        </p>
-                        <div className="flex items-center space-x-2 mb-3">
-                          {/* Only show user tags if they exist */}
-                          {entry.tags && entry.tags.length > 0 && entry.tags.slice(0, 2).map((tag, index) => {
-                            const categoryColor = entry.categories?.color || '#6366f1';
-                            const categoryName = entry.categories?.name || 'Personal';
-                            
-                            // Debug logging
-                            console.log('Entry ID:', entry.id);
-                            console.log('Entry categories:', entry.categories);
-                            console.log('Category color:', categoryColor);
-                            console.log('Category name:', categoryName);
-                            console.log('Tag being rendered:', tag);
-                            
-                            // Create a unique style element for each tag
-                            const tagStyle = {
-                              backgroundColor: categoryColor,
-                              color: 'white',
-                              padding: '0.25rem 0.75rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.75rem',
-                              fontWeight: '500',
-                              display: 'inline-block',
-                              border: 'none',
-                              outline: 'none'
-                            };
-                            
-                            return (
-                              <span 
-                                key={index}
-                                style={tagStyle}
-                                title={`Category: ${categoryName}`}
-                              >
-                                #{tag}
-                              </span>
-                            );
-                          })}
-                        </div>
-                        {/* AI Guidance */}
-                        {aiGuidance[entry.id] && (
-                          <div className={`mt-3 p-3 rounded-lg border ${
-                            isDarkMode 
-                              ? "bg-purple-900/20 border-purple-700/50" 
-                              : "bg-purple-50 border-purple-200"
-                          }`}>
-                            <div className="flex items-start space-x-2">
-                              <span className="text-sm">✨</span>
-                              <p className={`text-xs ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>
-                                {aiGuidance[entry.id]}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm">✨</span>
-                          <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                            {entry.categories?.name || 'Personal'}
-                          </p>
-                        </div>
-                      </div>
-                      <FiChevronRight className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
-                    </div>
-                  </a>
-                  {/* AI Guidance Button - Bottom Right */}
-                  <div className="flex justify-end mt-3">
-                    <button 
-                      onClick={() => generateAIGuidance(entry.id, entry.content)} 
-                      disabled={loadingGuidance[entry.id]}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 shadow-md transform hover:scale-105 ${
-                        loadingGuidance[entry.id]
-                          ? 'bg-gray-400 text-white cursor-not-allowed'
-                          : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
-                      }`}
-                    >
-                      {loadingGuidance[entry.id] ? (
-                        <span className="flex items-center space-x-2">
-                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                          </svg>
-                          <span>Generating...</span>
+            <div>
+              {/* Selection Controls */}
+              {displayEntries.length > 0 && (
+                <div className={`mb-4 p-4 rounded-xl border ${
+                  isDarkMode 
+                    ? "bg-slate-800/50 border-slate-700" 
+                    : "bg-white/70 border-gray-200"
+                }`}>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-3 sm:space-y-0">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={selectAllEntries}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                          isDarkMode
+                            ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
+                            : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                        }`}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={clearEntrySelection}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                          isDarkMode
+                            ? "bg-slate-700 text-gray-300 hover:bg-slate-600"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        Clear
+                      </button>
+                      {selectedEntries.size > 0 && (
+                        <span className={`text-sm font-medium ${
+                          isDarkMode ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          {selectedEntries.size} selected
                         </span>
-                      ) : (
-                        <span>{aiGuidance[entry.id] ? 'Refresh AI Guidance' : 'Get AI Guidance'}</span>
                       )}
-                    </button>
+                    </div>
+                    
+                    {selectedEntries.size > 0 && (
+                      <button
+                        onClick={() => setShowExportModal(true)}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 hover:scale-105 flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+                      >
+                        <FiDownload className="w-4 h-4" />
+                        <span>Export Selected</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
+              )}
+
+              <div className="space-y-3 md:space-y-4">
+                {displayEntries.slice(0, 3).map((entry) => (
+                  <div key={entry.id} className={`p-4 md:p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-white/70 border-gray-200"}`}>
+                    <div className="flex items-start space-x-3">
+                      {/* Checkbox */}
+                      <button
+                        onClick={() => toggleEntrySelection(entry.id)}
+                        className={`mt-1 p-1 rounded transition-all duration-200 ${
+                          selectedEntries.has(entry.id)
+                            ? "text-purple-600"
+                            : isDarkMode
+                            ? "text-gray-400 hover:text-gray-300"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {selectedEntries.has(entry.id) ? (
+                          <FiCheckSquare className="w-5 h-5" />
+                        ) : (
+                          <FiSquare className="w-5 h-5" />
+                        )}
+                      </button>
+
+                      {/* Entry Content */}
+                      <div className="flex-1">
+                        <a href={`/entries/${entry.id}`} className="block">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2 md:mb-3">
+                                <span className="text-lg md:text-2xl">{entry.mood || '😊'}</span>
+                                <h3 className={`text-base md:text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{entry.title || 'Untitled Entry'}</h3>
+                              </div>
+                              <div className="flex items-center space-x-2 mb-3">
+                                <FiCalendar className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
+                                <time className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                  {formatDate(entry.created_at)}
+                                </time>
+                              </div>
+                              <p className={`text-sm md:text-base mb-2 md:mb-3 line-clamp-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                                {entry.content}
+                              </p>
+                              <div className="flex items-center space-x-2 mb-3">
+                                {/* Only show user tags if they exist */}
+                                {entry.tags && entry.tags.length > 0 && entry.tags.slice(0, 2).map((tag, index) => {
+                                  const categoryColor = entry.categories?.color || '#6366f1';
+                                  const categoryName = entry.categories?.name || 'Personal';
+                                  
+                                  // Debug logging
+                                  console.log('Entry ID:', entry.id);
+                                  console.log('Entry categories:', entry.categories);
+                                  console.log('Category color:', categoryColor);
+                                  console.log('Category name:', categoryName);
+                                  console.log('Tag being rendered:', tag);
+                                  
+                                  // Create a unique style element for each tag
+                                  const tagStyle = {
+                                    backgroundColor: categoryColor,
+                                    color: 'white',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                    border: 'none',
+                                    outline: 'none'
+                                  };
+                                  
+                                  return (
+                                    <span 
+                                      key={index}
+                                      style={tagStyle}
+                                      title={`Category: ${categoryName}`}
+                                    >
+                                      #{tag}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                              {/* AI Guidance */}
+                              {aiGuidance[entry.id] && (
+                                <div className={`mt-3 p-3 rounded-lg border ${
+                                  isDarkMode 
+                                    ? "bg-purple-900/20 border-purple-700/50" 
+                                    : "bg-purple-50 border-purple-200"
+                                }`}>
+                                  <div className="flex items-start space-x-2">
+                                    <span className="text-sm">✨</span>
+                                    <p className={`text-xs ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>
+                                      {aiGuidance[entry.id]}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">✨</span>
+                                <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                                  {entry.categories?.name || 'Personal'}
+                                </p>
+                              </div>
+                            </div>
+                            <FiChevronRight className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
+                          </div>
+                        </a>
+                      </div>
+                    </div>
+                    {/* AI Guidance Button - Bottom Right */}
+                    <div className="flex justify-end mt-3 ml-8">
+                      <button 
+                        onClick={() => generateAIGuidance(entry.id, entry.content)} 
+                        disabled={loadingGuidance[entry.id]}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 shadow-md transform hover:scale-105 ${
+                          loadingGuidance[entry.id]
+                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
+                        }`}
+                      >
+                        {loadingGuidance[entry.id] ? (
+                          <span className="flex items-center space-x-2">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            <span>Generating...</span>
+                          </span>
+                        ) : (
+                          <span>{aiGuidance[entry.id] ? 'Refresh AI Guidance' : 'Get AI Guidance'}</span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1459,6 +1622,22 @@ export default function Dashboard() {
         </div>
         </>
       )}
+
+      {/* Export Modals */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        entries={getSelectedEntriesData()}
+        exportType="multiple"
+        aiInsights={aiWeeklyInsights}
+      />
+
+      <DateRangeExportModal
+        isOpen={showDateRangeExportModal}
+        onClose={() => setShowDateRangeExportModal(false)}
+        entries={entries}
+        aiInsights={aiWeeklyInsights}
+      />
     </div>
   );
 }
