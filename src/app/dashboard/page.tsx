@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { getUserEntries } from './actions';
 import { getMoodStats } from './stats-actions';
+import { formatDate } from './date-utils';
 import { DeleteButton } from './delete-button';
 import Link from 'next/link';
-import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
+import { FiBook, FiMoon, FiSun, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX } from 'react-icons/fi';
 import { MoodCalendar } from '@/components/mood-calendar';
 import { DateEntriesModal } from '@/components/date-entries-modal';
 import { InsightsModal } from '@/components/insights-modal';
@@ -88,6 +89,9 @@ export default function Dashboard() {
   const [loadingAIInsights, setLoadingAIInsights] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showMoodTracker, setShowMoodTracker] = useState(false);
+  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
+  const [dailyQuote, setDailyQuote] = useState<{ quote: string; author: string; theme: string; relevance: string; date: string } | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -97,6 +101,21 @@ export default function Dashboard() {
       setIsDarkMode(true);
       document.documentElement.classList.add("dark");
     }
+
+    // Get user data
+    const getUserData = async () => {
+      try {
+        const response = await fetch('/api/auth/user');
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data:', error);
+      }
+    };
+
+    getUserData();
   }, []);
 
   const toggleTheme = () => {
@@ -138,9 +157,49 @@ export default function Dashboard() {
     }
   };
 
+  // Generate Daily Quote
+  const generateDailyQuote = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if we already have a quote for today
+    const cachedQuote = localStorage.getItem('dailyQuote');
+    if (cachedQuote) {
+      const parsed = JSON.parse(cachedQuote);
+      if (parsed.date === today) {
+        setDailyQuote(parsed);
+        return;
+      }
+    }
+
+    setLoadingQuote(true);
+    try {
+      const response = await fetch('/api/ai/daily-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDailyQuote(data);
+        localStorage.setItem('dailyQuote', JSON.stringify(data));
+      }
+    } catch (error) {
+      console.error('Error generating daily quote:', error);
+    } finally {
+      setLoadingQuote(false);
+    }
+  };
+
   useEffect(() => {
     fetchEntries();
   }, []);
+
+  useEffect(() => {
+    if (entries.length > 0) {
+      generateDailyQuote();
+    }
+  }, [entries]);
 
   const handleDelete = () => {
     fetchEntries();
@@ -499,15 +558,6 @@ export default function Dashboard() {
                 {isDarkMode ? <FiSun className="text-xl" /> : <FiMoon className="text-xl" />}
               </button>
 
-              {/* Settings */}
-              <button className={`p-2 rounded-lg transition-all duration-200 ${
-                isDarkMode 
-                  ? "bg-slate-800 text-gray-300 hover:bg-slate-700" 
-                  : "bg-white text-gray-700 hover:bg-gray-100"
-              }`}>
-                <FiSettings className="text-xl" />
-              </button>
-
               {/* Profile Dropdown */}
               <div className="relative profile-dropdown">
                 <button
@@ -539,24 +589,14 @@ export default function Dashboard() {
                         <p className={`text-sm font-medium ${
                           isDarkMode ? "text-white" : "text-gray-900"
                         }`}>
-                          User Profile
+                          {user?.name || 'User'}
                         </p>
                         <p className={`text-xs ${
                           isDarkMode ? "text-gray-400" : "text-gray-500"
                         }`}>
-                          user@example.com
+                          {user?.email || 'user@example.com'}
                         </p>
                       </div>
-
-                      {/* Settings Option */}
-                      <button className={`w-full text-left px-4 py-3 flex items-center space-x-3 transition-colors duration-200 ${
-                        isDarkMode 
-                          ? "text-gray-300 hover:bg-slate-700 hover:text-white" 
-                          : "text-gray-700 hover:bg-gray-100"
-                      }`}>
-                        <FiSettings className="text-lg" />
-                        <span>Settings</span>
-                      </button>
 
                       {/* Logout Option */}
                       <button
@@ -739,6 +779,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+        
         {/* Mood and AI Insights Cards */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           {/* Mood Average Card */}
@@ -1064,11 +1105,7 @@ export default function Dashboard() {
                         <div className="flex items-center space-x-2 mb-3">
                           <FiCalendar className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
                           <time className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                            {new Date(entry.created_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
+                            {formatDate(entry.created_at)}
                           </time>
                         </div>
                         <p className={`text-sm md:text-base mb-2 md:mb-3 line-clamp-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
@@ -1196,21 +1233,71 @@ export default function Dashboard() {
           isDarkMode={isDarkMode}
         />
 
-        {/* Quote Section */}
-        <div className={`mt-16 p-8 rounded-2xl text-center ${
-          isDarkMode 
-            ? "bg-slate-800/50 border-slate-700" 
-            : "bg-white/70 border-gray-200"
-        }`}>
-          <span className="text-3xl md:text-4xl mb-4 block">💭</span>
-          <blockquote className={`text-base md:text-lg italic mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-            "Writing is the painting of the voice."
-          </blockquote>
-          <cite className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-            - Voltaire
-          </cite>
+        {/* View All Entries Link */}
+        <div className="mt-8 text-center">
+          <Link
+            href="/entries"
+            className={`inline-flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105 ${
+              isDarkMode
+                ? 'bg-slate-800/50 border border-slate-700 text-purple-400 hover:bg-slate-700/50'
+                : 'bg-white/70 border border-gray-200 text-purple-600 hover:bg-gray-50'
+            }`}
+          >
+            <FiBook className="w-5 h-5" />
+            <span className="font-medium">View All Entries</span>
+          </Link>
         </div>
-      </main>
+
+        {/* Daily Quote Card */}
+        <div className={`mt-8 p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+          isDarkMode 
+            ? "bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-purple-700" 
+            : "bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200"
+        }`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+              Daily Quote
+            </h3>
+            <FiMessageCircle className={`text-xl ${isDarkMode ? "text-purple-400" : "text-purple-600"}`} />
+          </div>
+          
+          {loadingQuote ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+            </div>
+          ) : dailyQuote ? (
+            <div className="space-y-3">
+              <blockquote className={`text-lg md:text-xl font-medium italic leading-relaxed ${
+                isDarkMode ? "text-white" : "text-gray-800"
+              }`}>
+                "{dailyQuote.quote}"
+              </blockquote>
+              <div className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                <span className="font-medium">{dailyQuote.author}</span>
+                {dailyQuote.theme && (
+                  <span className="ml-2 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-600 dark:text-purple-400">
+                    {dailyQuote.theme}
+                  </span>
+                )}
+              </div>
+              {dailyQuote.relevance && (
+                <p className={`text-xs mt-2 p-3 rounded-lg ${
+                  isDarkMode ? "bg-slate-800/50 text-gray-300" : "bg-white/50 text-gray-600"
+                }`}>
+                  {dailyQuote.relevance}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className={`text-center py-8 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              <FiMessageCircle className="text-4xl mx-auto mb-3 opacity-50" />
+              <p className="text-sm">No quote available yet</p>
+              <p className="text-xs mt-1">Start journaling to get personalized quotes</p>
+            </div>
+          )}
+        </div>
+
+              </main>
 
       {/* AI Weekly Insights Modal */}
       <InsightsModal 

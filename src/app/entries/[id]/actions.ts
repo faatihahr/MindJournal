@@ -5,9 +5,9 @@ import { redirect } from 'next/navigation';
 
 type JournalEntry = {
   id: string;
+  title?: string;
   content: string;
   mood?: string;
-  category?: string;
   category_id?: string;
   categories?: {
     name: string;
@@ -58,7 +58,7 @@ export async function getEntry(id: string) {
   }
 }
 
-export async function updateEntry(id: string, content: string, mood: string, categoryId?: string) {
+export async function updateEntry(id: string, title: string, content: string, mood: string, tags: string[], categoryId?: string) {
   try {
     const supabase = await createClient();
     
@@ -73,8 +73,10 @@ export async function updateEntry(id: string, content: string, mood: string, cat
     const { error } = await supabase
       .from('entries')
       .update({ 
+        title,
         content,
         mood,
+        tags,
         category_id: categoryId,
         updated_at: new Date().toISOString()
       })
