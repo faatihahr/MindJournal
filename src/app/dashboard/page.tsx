@@ -9,6 +9,7 @@ import { FiBook, FiMoon, FiSun, FiSettings, FiUser, FiCalendar, FiTrendingUp, Fi
 import { MoodCalendar } from '@/components/mood-calendar';
 import { DateEntriesModal } from '@/components/date-entries-modal';
 import { InsightsModal } from '@/components/insights-modal';
+import { MoodTrackerModal } from '@/components/mood-tracker-modal';
 import { StreakAnimation } from '@/components/streak-animation';
 
 type JournalEntry = {
@@ -86,6 +87,7 @@ export default function Dashboard() {
   const [aiWeeklyInsights, setAiWeeklyInsights] = useState<AIWeeklyInsights | null>(null);
   const [loadingAIInsights, setLoadingAIInsights] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showMoodTracker, setShowMoodTracker] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -607,6 +609,7 @@ export default function Dashboard() {
             </button>
             
             <button 
+              onClick={() => setShowInsightsModal(true)}
               className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
                 isDarkMode 
                   ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
@@ -619,17 +622,17 @@ export default function Dashboard() {
               <p className="text-xs font-medium">Insights</p>
             </button>
             
-            <a
-              href="/entries/new"
+            <button 
+              onClick={() => setShowMoodTracker(true)}
               className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
                 isDarkMode 
                   ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700" 
                   : "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700"
               }`}
             >
-              <FiPlus className={`text-lg mb-1 mx-auto`} />
-              <p className="text-xs font-medium">New</p>
-            </a>
+              <FiHeart className={`text-lg mb-1 mx-auto`} />
+              <p className="text-xs font-medium">Mood</p>
+            </button>
           </div>
         </div>
 
@@ -1007,11 +1010,13 @@ export default function Dashboard() {
             <FiTrendingUp className={`text-2xl mb-2 ${isDarkMode ? "text-blue-400" : "text-blue-600"}`} />
             <p className="font-medium">View Analytics</p>
           </button>
-          <button className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
-            isDarkMode 
-              ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
-              : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
-          }`}>
+          <button 
+            onClick={() => setShowMoodTracker(true)}
+            className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
+                : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+            }`}>
             <FiHeart className={`text-2xl mb-2 ${isDarkMode ? "text-pink-400" : "text-pink-600"}`} />
             <p className="font-medium">Mood Tracker</p>
           </button>
@@ -1214,6 +1219,13 @@ export default function Dashboard() {
         isDarkMode={isDarkMode}
       />
 
+      {/* Mood Tracker Modal */}
+      <MoodTrackerModal
+        isOpen={showMoodTracker}
+        onClose={() => setShowMoodTracker(false)}
+        isDarkMode={isDarkMode}
+      />
+
       {/* Weekly Insights Modal */}
       {showInsightsModal && (
         <>
@@ -1237,7 +1249,7 @@ export default function Dashboard() {
             }`}>
               <div className="flex items-center justify-between">
                 <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Weekly Insights
+                  Weekly Statistic
                 </h2>
                 <button
                   onClick={() => setShowInsightsModal(false)}
