@@ -5,31 +5,26 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { createEntry } from './actions';
 import { FiMic, FiMicOff, FiEdit3, FiSun, FiMoon } from 'react-icons/fi';
+import { PreviewModal } from '@/components/preview-modal';
 
 export default function NewEntry() {
   const [content, setContent] = useState('');
-  const [title, setTitle] = useState('');
-  const [selectedMood, setSelectedMood] = useState('😊');
-  const [moodIntensity, setMoodIntensity] = useState(5);
-  const [isMoodAuto, setIsMoodAuto] = useState(false);
-  const [isDetectingMood, setIsDetectingMood] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [isTidying, setIsTidying] = useState(false);
-  const [aiResult, setAiResult] = useState('');
-  const [showAiResult, setShowAiResult] = useState(false);
-  const [isEditingAiResult, setIsEditingAiResult] = useState(false);
-  const [editedAiResult, setEditedAiResult] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [aiTidiedResult, setAiTidiedResult] = useState('');
+  const [showTidiedResult, setShowTidiedResult] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState<{
+    moodData: { emoji: string; label: string; intensity: number } | null;
+    tags: string[];
+    finalContent: string;
+  }>({ moodData: null, tags: [], finalContent: '' });
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('id-ID');
-  const [aiSuggestedTags, setAiSuggestedTags] = useState<string[]>([]);
-  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [aiDetectedMood, setAiDetectedMood] = useState<string>('');
   const recognitionRef = useRef<any>(null);
   const router = useRouter();
 
@@ -42,16 +37,16 @@ export default function NewEntry() {
   useEffect(() => {
     // Remove auth check - let middleware handle authentication
     console.log('New Entry: Loading form (auth handled by middleware)');
-    
+
     // Initialize dark mode
     const savedTheme = localStorage.getItem("theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
+
     if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
       setIsDarkMode(true);
       document.documentElement.classList.add("dark");
     }
-    
+
     // Initialize speech recognition if available
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition;
@@ -59,11 +54,11 @@ export default function NewEntry() {
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = selectedLanguage;
-      
+
       recognition.onresult = (event: any) => {
         let finalTranscript = '';
         let interimTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
@@ -72,7 +67,7 @@ export default function NewEntry() {
             interimTranscript += transcript;
           }
         }
-        
+
         setTranscript(prev => prev + finalTranscript);
         setContent(prev => prev + finalTranscript);
       };
@@ -82,154 +77,26 @@ export default function NewEntry() {
         setError(`Speech recognition error: ${event.error}`);
         setIsRecording(false);
       };
-      
+
       recognition.onend = () => {
         setIsRecording(false);
       };
-      
+
       recognitionRef.current = recognition;
     } else {
       console.warn('Speech recognition not supported');
     }
   }, []);
 
-  const handleDetectMood = async () => {
-    if (!content.trim() || isDetectingMood) return;
-
-    setIsDetectingMood(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/ai/mood', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!response.ok) throw new Error('Failed to detect mood');
-
-      const data = await response.json();
-
-      if (data?.emoji) {
-        setSelectedMood(data.emoji);
-        if (typeof data.intensity === 'number' && data.intensity >= 1 && data.intensity <= 10) {
-          setMoodIntensity(data.intensity);
-        }
-        setIsMoodAuto(true);
-      }
-    } catch (error) {
-      console.error('Error detecting mood:', error);
-      setError('Failed to detect mood automatically. You can still choose it manually.');
-    } finally {
-      setIsDetectingMood(false);
-    }
-  };
-
-  const handleTidyUp = async () => {
-    if (!content.trim()) return;
-    
-    setIsTidying(true);
-    setError(null);
-    
-    try {
-      // Run tidy up, mood analysis, and auto-tagging in parallel
-      const [tidyResponse, moodResponse, tagsResponse] = await Promise.all([
-        fetch('/api/ai/tidy', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        }),
-        fetch('/api/ai/mood', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        }),
-        fetch('/api/ai/tags', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        })
-      ]);
-      
-      if (!tidyResponse.ok) throw new Error('Failed to tidy up text');
-      if (!moodResponse.ok) throw new Error('Failed to detect mood');
-      if (!tagsResponse.ok) throw new Error('Failed to generate tags');
-      
-      const { tidiedText } = await tidyResponse.json();
-      const moodData = await moodResponse.json();
-      const tagsData = await tagsResponse.json();
-      
-      // Set tidied text
-      setAiResult(tidiedText);
-      setEditedAiResult(tidiedText);
-      
-      // Set mood data
-      if (moodData?.emoji) {
-        console.log('Setting mood - AI detected:', moodData.emoji);
-        setSelectedMood(moodData.emoji);
-        setAiDetectedMood(moodData.emoji);
-        if (typeof moodData.intensity === 'number' && moodData.intensity >= 1 && moodData.intensity <= 10) {
-          setMoodIntensity(moodData.intensity);
-        }
-        setIsMoodAuto(true);
-      }
-      
-      // Set tag suggestions
-      if (tagsData?.suggestedTags && Array.isArray(tagsData.suggestedTags)) {
-        setAiSuggestedTags(tagsData.suggestedTags);
-        setShowTagSuggestions(true);
-      }
-      
-      setShowAiResult(true);
-      setIsEditingAiResult(false);
-    } catch (error) {
-      console.error('Error processing with AI:', error);
-      setError('Failed to process with AI. Please try again.');
-    } finally {
-      setIsTidying(false);
-    }
-  };
-
-  const handleAcceptAiResult = () => {
-    setContent(aiResult);
-    setShowAiResult(false);
-    setAiResult('');
-    setEditedAiResult('');
-  };
-
-  const handleEditAiResult = () => {
-    setIsEditingAiResult(true);
-  };
-
-  const handleSaveEditedAiResult = () => {
-    setAiResult(editedAiResult);
-    setIsEditingAiResult(false);
-  };
-
-  const handleCancelAiResult = () => {
-    setShowAiResult(false);
-    setAiResult('');
-    setEditedAiResult('');
-    setIsEditingAiResult(false);
-  };
-  
   const toggleRecording = () => {
     if (!recognitionRef.current) {
       setError('Speech recognition is not supported in your browser');
       return;
     }
-    
+
     // Update language before starting
     recognitionRef.current.lang = selectedLanguage;
-    
+
     if (isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
@@ -240,58 +107,20 @@ export default function NewEntry() {
       setError(null);
     }
   };
-  
+
   const handleEditTranscript = () => {
     setIsEditing(!isEditing);
   };
-  
+
   const saveEditedTranscript = () => {
     setContent(transcript);
     setIsEditing(false);
   };
-  
-  const addTag = () => {
-    const trimmedTag = tagInput.trim();
-    if (trimmedTag && !tags.includes(trimmedTag) && tags.length < 5) {
-      setTags([...tags, trimmedTag]);
-      setTagInput('');
-    }
-  };
-  
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-  
-  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTag();
-    }
-  };
-  
-  const moodOptions = [
-    { mood: 'very_happy', emoji: '😄', definition: 'Very Happy: Feeling extremely joyful and elated' },
-    { mood: 'happy', emoji: '😊', definition: 'Happy: Feeling pleased and content' },
-    { mood: 'neutral', emoji: '😐', definition: 'Neutral: Feeling neither happy nor sad' },
-    { mood: 'sad', emoji: '☹️', definition: 'Sad: Feeling unhappy or sorrowful' },
-    { mood: 'very_sad', emoji: '😭', definition: 'Very Sad: Feeling extremely upset or devastated' },
-    { mood: 'excited', emoji: '🤩', definition: 'Excited: Feeling enthusiastic and eager' },
-    { mood: 'anxious', emoji: '😰', definition: 'Anxious: Feeling worried or nervous' },
-    { mood: 'angry', emoji: '😠', definition: 'Angry: Feeling annoyed or irritated' },
-    { mood: 'tired', emoji: '😴', definition: 'Tired: Feeling weary or exhausted' },
-    { mood: 'love', emoji: '🥰', definition: 'Love: Feeling deep affection and care' },
-    { mood: 'confused', emoji: '😕', definition: 'Confused: Feeling unclear or uncertain' },
-    { mood: 'grateful', emoji: '🙏', definition: 'Grateful: Feeling thankful and appreciative' },
-    { mood: 'hopeful', emoji: '🌟', definition: 'Hopeful: Feeling optimistic about the future' },
-    { mood: 'frustrated', emoji: '😤', definition: 'Frustrated: Feeling annoyed by difficulties' },
-    { mood: 'calm', emoji: '😌', definition: 'Calm: Feeling peaceful and relaxed' },
-    { mood: 'proud', emoji: '😎', definition: 'Proud: Feeling satisfied about achievements' },
-  ];
-  
+
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
-    
+
     if (newTheme) {
       document.documentElement.classList.add("dark");
       localStorage.setItem("theme", "dark");
@@ -303,38 +132,333 @@ export default function NewEntry() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !title.trim()) {
-      setError('Title and content are required');
+    if (!content.trim()) {
+      setError('Content is required');
       return;
     }
-    
-    // Validate character limit
+
     if (content.length > MAX_CHARS) {
       setError(`Content must be ${MAX_CHARS} characters or less. Currently ${content.length} characters.`);
       return;
     }
-    
+
     setIsSubmitting(true);
     setError(null);
-    
+
     try {
-      // Use server action which has access to server-side session
-      const result = await createEntry(title, content, selectedMood, tags, moodIntensity);
-      
-      if (result?.error) {
-        setError(result.error);
+      let finalContent = content;
+      let shouldShowTidyResult = false;
+
+      // Get AI settings
+      const autoTidyUp = JSON.parse(localStorage.getItem('autoTidyUp') || 'false');
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+
+      // Tidy up content if enabled
+      if (autoTidyUp) {
+        try {
+          const tidyResponse = await fetch('/api/ai/tidy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+          });
+
+          if (tidyResponse.ok) {
+            const { tidiedText } = await tidyResponse.json();
+            if (tidiedText && tidiedText !== content) {
+              finalContent = tidiedText;
+              shouldShowTidyResult = true;
+              setAiTidiedResult(tidiedText);
+            }
+          }
+        } catch (error) {
+          console.error('Tidy up failed:', error);
+        }
+      }
+
+      // Default values
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Mood API Response:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          } else {
+            console.error('Mood API Error:', moodResponse.status, await moodResponse.text());
+          }
+        } catch (error) {
+          console.error('Mood detection failed:', error);
+        }
+      }
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Tags API Response:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          } else {
+            console.error('Tags API Error:', tagsResponse.status, await tagsResponse.text());
+          }
+        } catch (error) {
+          console.error('Tag generation failed:', error);
+        }
+      }
+
+      // If tidying is enabled and there's a tidied version different from original, show tidied modal first
+      if (shouldShowTidyResult) {
+        setShowTidiedResult(true);
+        setIsSubmitting(false);
         return;
       }
-      
-      // Success - redirect to dashboard
-      window.location.href = '/dashboard';
-      
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+      });
+      setShowPreviewModal(true);
+      setIsSubmitting(false);
+
     } catch (error: any) {
       console.error('Submit error:', error);
-      setError(error.message || 'Failed to create entry');
-    } finally {
+      setError(error.message || 'Failed to generate preview');
       setIsSubmitting(false);
     }
+  };
+
+  const handleContinueFromPreview = async () => {
+    setShowPreviewModal(false);
+    setIsSubmitting(true);
+
+    try {
+      const { moodData, tags, finalContent } = previewData;
+
+      // Use default values if not detected
+      const mood = moodData?.emoji || '😊';
+      const moodIntensity = moodData?.intensity || 5;
+
+      // Generate title from content
+      const finalTitle = generateTitleFromContent(finalContent);
+
+      // Debug logs
+      console.log('Creating Entry with:', {
+        title: finalTitle,
+        content: finalContent,
+        mood,
+        tags,
+        intensity: moodIntensity,
+      });
+
+      // Create entry with detected mood and tags
+      const result = await createEntry(finalTitle, finalContent, mood, tags, moodIntensity);
+
+      if (result?.error) {
+        setError(result.error);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Success - set flag and redirect to dashboard
+      sessionStorage.setItem('justCreatedEntry', 'true');
+      window.location.href = '/dashboard';
+
+    } catch (error: any) {
+      console.error('Save error:', error);
+      setError(error.message || 'Failed to create entry');
+      setIsSubmitting(false);
+      setShowPreviewModal(false); // Close modal on error
+    }
+  };
+
+  // Accept tidied result and continue to preview
+  const acceptTidiedResult = async () => {
+    setShowTidiedResult(false);
+    setIsSubmitting(true);
+
+    try {
+      // Use the tidied content
+      const finalContent = aiTidiedResult;
+
+      // Generate AI insights with tidied content
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
+
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Mood API Response after tidy accept:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Mood detection failed after tidy:', error);
+        }
+      }
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Tags API Response after tidy accept:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          }
+        } catch (error) {
+          console.error('Tag generation failed after tidy:', error);
+        }
+      }
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+      });
+      setShowPreviewModal(true);
+      setIsSubmitting(false);
+
+    } catch (error: any) {
+      console.error('Preview generation after tidy error:', error);
+      setError(error.message || 'Failed to generate preview');
+      setIsSubmitting(false);
+    }
+  };
+
+  // Reject tidied result and continue to preview with original
+  const rejectTidiedResult = async () => {
+    setShowTidiedResult(false);
+    setIsSubmitting(true);
+
+    try {
+      // Use the original content
+      const finalContent = content;
+
+      // Generate AI insights with original content
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
+
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Mood API Response after tidy reject:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Mood detection failed after tidy:', error);
+        }
+      }
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Tags API Response after tidy reject:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          }
+        } catch (error) {
+          console.error('Tag generation failed after tidy:', error);
+        }
+      }
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+      });
+      setShowPreviewModal(true);
+      setIsSubmitting(false);
+
+    } catch (error: any) {
+      console.error('Preview generation after tidy error:', error);
+      setError(error.message || 'Failed to generate preview');
+      setIsSubmitting(false);
+    }
+  };
+
+  const generateTitleFromContent = (content: string) => {
+    const words = content.trim().split(' ');
+    if (words.length <= 5) return content;
+    
+    // Take first 5 words and add "..."
+    return words.slice(0, 5).join(' ') + '...';
   };
 
   return (
@@ -386,12 +510,12 @@ export default function NewEntry() {
         </nav>
       </header>
 
-      {/* AI Result Modal */}
-      {showAiResult && (
+      {/* AI Tidied Result Modal */}
+      {showTidiedResult && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-            isDarkMode 
-              ? "bg-slate-800/90 border-slate-700" 
+            isDarkMode
+              ? "bg-slate-800/90 border-slate-700"
               : "bg-white/90 border-gray-200"
           }`}>
             <div className="flex items-center justify-between mb-4">
@@ -401,10 +525,10 @@ export default function NewEntry() {
                 AI Tidied Result
               </h3>
               <button
-                onClick={handleCancelAiResult}
+                onClick={rejectTidiedResult}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  isDarkMode 
-                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600" 
+                  isDarkMode
+                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -413,10 +537,10 @@ export default function NewEntry() {
                 </svg>
               </button>
             </div>
-            
+
             <div className={`mb-4 p-4 rounded-xl border ${
-              isDarkMode 
-                ? "bg-slate-700/50 border-slate-600" 
+              isDarkMode
+                ? "bg-slate-700/50 border-slate-600"
                 : "bg-gray-50 border-gray-200"
             }`}>
               <p className={`text-sm font-medium mb-2 ${
@@ -430,96 +554,41 @@ export default function NewEntry() {
                 {content}
               </p>
             </div>
-            
+
             <div className={`mb-6 p-4 rounded-xl border ${
-              isDarkMode 
-                ? "bg-purple-900/20 border-purple-700" 
+              isDarkMode
+                ? "bg-purple-900/20 border-purple-700"
                 : "bg-purple-50 border-purple-200"
             }`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-700"
-                }`}>
-                  AI improved version:
-                </p>
-                {!isEditingAiResult && (
-                  <button
-                    onClick={handleEditAiResult}
-                    className={`flex items-center space-x-1 text-sm font-medium hover:underline transition-all duration-200 ${
-                      isDarkMode ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-800"
-                    }`}
-                  >
-                    <FiEdit3 className="text-base" />
-                    <span>Edit</span>
-                  </button>
-                )}
-              </div>
-              
-              {isEditingAiResult ? (
-                <textarea
-                  value={editedAiResult}
-                  onChange={(e) => setEditedAiResult(e.target.value)}
-                  className={`w-full p-4 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
-                    isDarkMode
-                      ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                  }`}
-                  rows={8}
-                  placeholder="Edit AI result..."
-                />
-              ) : (
-                <p className={`text-sm leading-relaxed ${
-                  isDarkMode ? "text-gray-200" : "text-gray-700"
-                }`}>
-                  {aiResult}
-                </p>
-              )}
+              <p className={`text-sm font-medium mb-2 ${
+                isDarkMode ? "text-purple-300" : "text-purple-700"
+              }`}>
+                AI improved version:
+              </p>
+              <p className={`text-sm leading-relaxed ${
+                isDarkMode ? "text-gray-200" : "text-gray-700"
+              }`}>
+                {aiTidiedResult}
+              </p>
             </div>
-            
+
             <div className="flex space-x-3">
-              {isEditingAiResult ? (
-                <>
-                  <button
-                    onClick={handleSaveEditedAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
-                        : "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                    }`}
-                  >
-                    Save Changes
-                  </button>
-                  <button
-                    onClick={() => setIsEditingAiResult(false)}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    Cancel Edit
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleAcceptAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
-                  >
-                    Accept & Use This
-                  </button>
-                  <button
-                    onClick={handleCancelAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    Keep Original
-                  </button>
-                </>
-              )}
+              <button
+                onClick={acceptTidiedResult}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+              >
+                Use This Version
+              </button>
+              <button
+                onClick={rejectTidiedResult}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
+                  isDarkMode
+                    ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Keep Original
+              </button>
             </div>
           </div>
         </div>
@@ -532,27 +601,6 @@ export default function NewEntry() {
             ? "bg-slate-800/50 border-slate-700" 
             : "bg-white/70 border-gray-200"
         }`}>
-          {/* Title */}
-          <div className="mb-8">
-            <label htmlFor="title" className={`block text-lg font-semibold mb-3 ${
-              isDarkMode ? "text-white" : "text-gray-900"
-            }`}>
-              Title
-            </label>
-            <input
-              type="text"
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                isDarkMode
-                  ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm"
-                  : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
-              }`}
-              placeholder="Give your entry a title..."
-            />
-          </div>
-
           {/* Content */}
           <div className="mb-8">
             <label htmlFor="content" className={`block text-lg font-semibold mb-3 ${
@@ -722,231 +770,6 @@ export default function NewEntry() {
             )}
           </div>
 
-          {/* AI Enhancement Buttons */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleTidyUp}
-                disabled={!content.trim() || isTidying}
-                className={`flex-1 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
-              >
-                {isTidying ? 'AI Processing...' : '✨ Tidy Up, Analyze Mood & Tags'}
-              </button>
-            </div>
-            <p className={`text-xs text-center mt-2 ${
-              isDarkMode ? "text-gray-400" : "text-gray-600"
-            }`}>
-              AI will improve your writing, detect your mood, and suggest relevant tags automatically
-            </p>
-          </div>
-
-          {/* Mood Selection */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <label className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  How are you feeling?
-                </label>
-                {aiDetectedMood && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>
-                    AI detected: {aiDetectedMood}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className={`text-xs px-2 py-1 rounded-full ${isDarkMode ? 'bg-slate-700 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
-                  {moodIntensity}/10
-                </span>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={moodIntensity}
-                  onChange={(e) => setMoodIntensity(Number(e.target.value))}
-                  className="w-24 accent-purple-600"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-              {moodOptions.map((item) => {
-                const isAISelected = aiDetectedMood === item.emoji;
-                const isSelected = selectedMood === item.emoji;
-                
-                return (
-                  <div key={item.mood} className="relative group">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedMood(item.emoji);
-                        setIsMoodAuto(false);
-                      }}
-                      className={`p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
-                        aiDetectedMood === item.emoji
-                          ? 'border-purple-500 bg-purple-500 text-white shadow-lg'
-                          : selectedMood === item.emoji
-                            ? isDarkMode
-                              ? 'border-purple-500 bg-purple-900/50 shadow-lg'
-                              : 'border-purple-500 bg-purple-50 shadow-lg'
-                            : isDarkMode
-                              ? 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
-                              : 'border-gray-200 hover:border-gray-300 bg-white/50'
-                      }`}
-                    >
-                      <span className="text-xl">{item.emoji}</span>
-                    </button>
-                    {/* Tooltip */}
-                    <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 ${
-                      isDarkMode 
-                        ? 'bg-slate-700 text-white border border-slate-600' 
-                        : 'bg-gray-800 text-white border border-gray-600'
-                    }`}>
-                      <div className="font-medium">{item.emoji} {item.mood.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                      <div className="text-gray-300 text-xs mt-1">{item.definition.split(':')[1]?.trim() || item.definition}</div>
-                      {aiDetectedMood === item.emoji && (
-                        <div className="mt-1 text-xs text-purple-300 font-medium">
-                          ✓ Detected by AI
-                        </div>
-                      )}
-                      {/* Arrow */}
-                      <div className={`absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 rotate-45 ${
-                        isDarkMode ? 'bg-slate-700 border-l border-t border-slate-600' : 'bg-gray-800 border-l border-t border-gray-600'
-                      }`}></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div className="mb-8">
-            <label htmlFor="tags" className={`block text-lg font-semibold mb-3 ${
-              isDarkMode ? "text-white" : "text-gray-900"
-            }`}>
-              Tags <span className={`text-sm font-normal ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>(max 5)</span>
-            </label>
-            <div className={`p-4 rounded-xl border transition-all duration-200 ${
-              isDarkMode
-                ? "bg-slate-700/50 border-slate-600"
-                : "bg-white/70 border-gray-200"
-            }`}>
-              {/* Tags Display */}
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
-                        isDarkMode
-                          ? "bg-purple-900/50 text-purple-300"
-                          : "bg-purple-100 text-purple-700"
-                      }`}
-                    >
-                      <span>#{tag}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className={`ml-1 hover:text-red-500 transition-colors duration-200 ${
-                          isDarkMode ? "text-purple-300" : "text-purple-700"
-                        }`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              
-              {/* Tag Input */}
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={handleTagInputKeyPress}
-                  placeholder="Add tags (press Enter or comma)"
-                  disabled={tags.length >= 5}
-                  className={`flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                    isDarkMode
-                      ? "bg-slate-600/50 border-slate-500 text-white placeholder-gray-400"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                  } ${tags.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={addTag}
-                  disabled={!tagInput.trim() || tags.length >= 5}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
-                    !tagInput.trim() || tags.length >= 5
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
-                  }`}
-                >
-                  Add
-                </button>
-              </div>
-              {tags.length >= 5 && (
-                <p className={`mt-2 text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  Maximum 5 tags reached
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* AI Tag Suggestions */}
-          {showTagSuggestions && aiSuggestedTags.length > 0 && (
-            <div className={`mb-8 p-4 rounded-xl border transition-all duration-300 ${
-              isDarkMode 
-                ? "bg-purple-900/20 border-purple-700" 
-                : "bg-purple-50 border-purple-200"
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`text-lg font-semibold ${
-                  isDarkMode ? "text-white" : "text-gray-900"
-                }`}>
-                  🏷️ AI Suggested Tags
-                </h3>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  isDarkMode ? "bg-purple-800/50 text-purple-300" : "bg-purple-200 text-purple-700"
-                }`}>
-                  AI-generated
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {aiSuggestedTags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => {
-                        if (!tags.includes(tag) && tags.length < 5) {
-                          setTags([...tags, tag]);
-                        }
-                      }}
-                      disabled={tags.includes(tag)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
-                        tags.includes(tag)
-                          ? 'bg-green-500 text-white cursor-not-allowed'
-                          : isDarkMode
-                            ? 'bg-purple-800/50 text-purple-300 hover:bg-purple-700/50 border border-purple-600'
-                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
-                      }`}
-                    >
-                      {tags.includes(tag) ? '✓ ' : ''}{tag}
-                    </button>
-                  ))}
-                </div>
-                <p className={`text-xs ${
-                  isDarkMode ? "text-purple-300" : "text-purple-700"
-                }`}>
-                  Click to add tags to your entry (max 5 tags total)
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
@@ -975,9 +798,9 @@ export default function NewEntry() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!content.trim() || !title.trim() || isSubmitting || isTidying || isOverLimit}
+                disabled={!content.trim() || isSubmitting || isOverLimit}
                 className={`px-8 py-3 text-sm font-semibold rounded-full transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg w-full sm:w-auto ${
-                  isSubmitting || isTidying
+                  isSubmitting
                     ? 'bg-gray-400 cursor-not-allowed'
                     : isOverLimit
                     ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -989,11 +812,6 @@ export default function NewEntry() {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>Saving...</span>
                   </div>
-                ) : isTidying ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>AI Processing...</span>
-                  </div>
                 ) : (
                   'Create Entry'
                 )}
@@ -1002,6 +820,17 @@ export default function NewEntry() {
           </div>
         </div>
       </main>
+
+      {/* AI Preview Modal */}
+      <PreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onContinue={handleContinueFromPreview}
+        isDarkMode={isDarkMode}
+        moodData={previewData.moodData}
+        tags={previewData.tags}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

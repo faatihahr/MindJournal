@@ -6,7 +6,7 @@ import { getMoodStats } from './stats-actions';
 import { formatDate } from './date-utils';
 import { DeleteButton } from './delete-button';
 import Link from 'next/link';
-import { FiBook, FiMoon, FiSun, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX, FiDownload, FiCheckSquare, FiSquare } from 'react-icons/fi';
+import { FiBook, FiMoon, FiSun, FiUser, FiCalendar, FiTrendingUp, FiHeart, FiSearch, FiFilter, FiStar, FiChevronRight, FiMessageCircle, FiPlus, FiLogOut, FiChevronDown, FiX, FiDownload, FiCheckSquare, FiSquare, FiSettings } from 'react-icons/fi';
 import { MoodCalendar } from '@/components/mood-calendar';
 import { DateEntriesModal } from '@/components/date-entries-modal';
 import { InsightsModal } from '@/components/insights-modal';
@@ -199,6 +199,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchEntries();
+    
+    // Check if we just came from creating an entry and refresh data
+    const justCreatedEntry = sessionStorage.getItem('justCreatedEntry') === 'true';
+    if (justCreatedEntry) {
+      // Add a small delay to ensure the new entry is saved
+      setTimeout(() => {
+        fetchEntries();
+      }, 500);
+    }
   }, []);
 
   useEffect(() => {
@@ -391,29 +400,72 @@ export default function Dashboard() {
   
   const calculateCurrentStreak = () => {
     if (entries.length === 0) return 0;
-    
-    const sortedEntries = [...entries].sort((a, b) => 
+
+    const sortedEntries = [...entries].sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
-    
+
+    // Group entries by date to check daily streaks
+    const entriesByDate = new Map<string, boolean>();
+    sortedEntries.forEach(entry => {
+      const date = new Date(entry.created_at).toDateString();
+      entriesByDate.set(date, true);
+    });
+
     let streak = 0;
-    let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
-    
-    for (const entry of sortedEntries) {
-      const entryDate = new Date(entry.created_at);
-      entryDate.setHours(0, 0, 0, 0);
-      
-      const dayDiff = Math.floor((currentDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (dayDiff <= streak) {
-        streak++;
-        currentDate = new Date(entryDate);
-      } else {
-        break;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if there's an entry today
+    const todayStr = today.toDateString();
+    if (entriesByDate.has(todayStr)) {
+      streak = 1;
+
+      // Count consecutive previous days with entries
+      let checkDate = new Date(today);
+      while (true) {
+        checkDate.setDate(checkDate.getDate() - 1);
+        const checkDateStr = checkDate.toDateString();
+
+        if (entriesByDate.has(checkDateStr)) {
+          streak++;
+        } else {
+          break; // Gap in streak, stop counting
+        }
+      }
+    } else {
+      // No entry today, check if yesterday has entry for absolute streak
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toDateString();
+
+      if (entriesByDate.has(yesterdayStr)) {
+        // Entry yesterday, streak is broken by no entry today
+        return 0;
+      }
+
+      // No entry yesterday either, check further back for the absolute streak
+      let checkDate = new Date(today);
+      let foundStart = false;
+
+      while (true) {
+        checkDate.setDate(checkDate.getDate() - 1);
+        const checkDateStr = checkDate.toDateString();
+
+        if (entriesByDate.has(checkDateStr)) {
+          if (!foundStart) {
+            streak = 1;
+            foundStart = true;
+          } else {
+            streak++;
+          }
+        } else if (foundStart) {
+          break; // Gap found, stop counting
+        }
       }
     }
-    
+
+    console.log('Final streak:', streak);
     return streak;
   };
   
@@ -544,9 +596,28 @@ export default function Dashboard() {
     const currentStreak = stats.currentStreak;
     const previousStreak = parseInt(localStorage.getItem('previousStreak') || '0');
     
-    if (currentStreak > previousStreak && currentStreak > 0) {
+    // Check if we just came from creating a new entry
+    const justCreatedEntry = sessionStorage.getItem('justCreatedEntry') === 'true';
+    
+    console.log('Streak Animation Debug:', {
+      currentStreak,
+      previousStreak,
+      justCreatedEntry,
+      shouldTrigger: currentStreak > previousStreak && currentStreak > 0
+    });
+    
+    // Trigger animation if either:
+    // 1. Streak increased from previous value, OR
+    // 2. We just created an entry and have a positive streak
+    if ((currentStreak > previousStreak && currentStreak > 0) || (justCreatedEntry && currentStreak > 0)) {
+      console.log('Triggering streak animation!');
       setShowStreakAnimation(true);
       localStorage.setItem('previousStreak', currentStreak.toString());
+      
+      // Clear the session flag
+      if (justCreatedEntry) {
+        sessionStorage.removeItem('justCreatedEntry');
+      }
       
       // Hide animation after 3 seconds
       setTimeout(() => setShowStreakAnimation(false), 3000);
@@ -632,6 +703,19 @@ export default function Dashboard() {
                           {user?.email || 'user@example.com'}
                         </p>
                       </div>
+
+                      {/* Settings Option */}
+                      <button
+                        onClick={() => window.location.href = '/settings'}
+                        className={`w-full text-left px-4 py-3 flex items-center space-x-3 transition-colors duration-200 ${
+                          isDarkMode 
+                            ? "text-gray-300 hover:bg-slate-700 hover:text-white" 
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <FiSettings className="text-lg" />
+                        <span>Settings</span>
+                      </button>
 
                       {/* Logout Option */}
                       <button

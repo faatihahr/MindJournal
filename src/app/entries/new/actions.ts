@@ -3,7 +3,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
-export async function createEntry(title: string, content: string, mood: string, tags: string[], moodIntensity: number) {
+export async function createEntry(
+  title: string, 
+  content: string, 
+  mood: string = 'neutral', 
+  tags: string[] = [], 
+  moodIntensity: number = 5
+) {
   try {
     const supabase = await createClient();
     

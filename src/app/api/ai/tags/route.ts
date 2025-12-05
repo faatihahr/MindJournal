@@ -28,11 +28,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const ai = new GoogleGenAI({});
+    const ai = new GoogleGenAI({ apiKey });
 
     const predefinedTagsList = PREDEFINED_TAGS.map(tag => `"${tag}"`).join(', ');
 
-    const prompt = `You are a content tagging assistant for a journaling app.
+    const prompt = `You are a content tagging assistant for a journaling app. The journal entries may be in Indonesian or English.
 Analyze the following journal entry and suggest relevant tags.
 
 RULES:
@@ -42,12 +42,21 @@ RULES:
 4. Return ONLY a JSON array, no explanation
 5. If no predefined tags match, return an empty array []
 
-Consider these patterns for tag selection:
-- "Work": Job, career, office, projects, meetings, deadlines, colleagues
-- "Personal": Family, friends, relationships, daily life, health, emotions
-- "Ideas": Creative thoughts, innovations, brainstorming, concepts, inspiration
-- "Goals": Plans, targets, achievements, milestones, resolutions, ambitions
-- "Reflection": Self-analysis, learning, growth, memories, experiences
+Consider these patterns for tag selection (including Indonesian keywords):
+- "Work": Job, career, office, projects, meetings, deadlines, colleagues, "project", "kerja", "kantor", "deadline", "tim", "kelompok", "pekerjaan", "profesi", "rapat", "klien", "tugas", "presentasi", "error", "perubahan", "masalah"
+- "Personal": Family, friends, relationships, daily life, health, emotions, "keluarga", "teman", "hubungan", "kesehatan", "perasaan", "pribadi", "kehidupan", "asmara", "cinta", "rumah", "sakit", "badan", "meriang", "gigi"
+- "Ideas": Creative thoughts, innovations, brainstorming, concepts, inspiration, "ide", "pikiran", "inspirasi", "konsep", "kreativitas", "inovasi", "brainstorming", "gagasan"
+- "Goals": Plans, targets, achievements, milestones, resolutions, ambitions, "tujuan", "target", "rencana", "ambisi", "sasaran", "impian", "cita-cita", "prestasi"
+- "Reflection": Self-analysis, learning, growth, memories, experiences, "refleksi", "pembelajaran", "pengalaman", "kenangan", "introspeksi", "evaluasi diri", "pertumbuhan", "pelajaran"
+
+IMPORTANT: If content mentions "project", "error", "kerja", "deadline", "tim", "kelompok" - prioritize WORK tag.
+If content mentions health issues like "sakit", "gigi", "badan", "meriang" - prioritize PERSONAL tag.
+Consider multiple relevant tags, not just Personal.
+
+EXAMPLES FOR REFERENCE:
+- "Duh hari ini cape banget, banyak yang bikin pusing. Banyak perubahan di project aku dan errornya pun banyak" → ["Work", "Personal"]
+- "Gigi gue sakit bgt anjir dari kemarin. Mana badan meriang gara-gara ujan" → ["Personal"]
+- "Baru dapet ide brilian untuk project kerjaan" → ["Work", "Ideas"]
 
 Journal entry:
 """${content}"""

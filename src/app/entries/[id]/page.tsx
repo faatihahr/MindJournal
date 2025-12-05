@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { getEntry, updateEntry, deleteEntry } from './actions';
 import { FiArrowLeft, FiEdit3, FiTrash2, FiSave, FiX, FiMoon, FiSun, FiCalendar, FiTag, FiDownload } from 'react-icons/fi';
 import { ExportModal } from '@/components/export-modal';
+import { PreviewModal } from '@/components/preview-modal';
 
 type JournalEntry = {
   id: string;
@@ -60,18 +61,18 @@ export default function EntryDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isTidying, setIsTidying] = useState(false);
-  const [aiResult, setAiResult] = useState('');
-  const [showAiResult, setShowAiResult] = useState(false);
-  const [isEditingAiResult, setIsEditingAiResult] = useState(false);
-  const [editedAiResult, setEditedAiResult] = useState('');
-  const [aiDetectedMood, setAiDetectedMood] = useState<string>('');
-  const [aiSuggestedTags, setAiSuggestedTags] = useState<string[]>([]);
-  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [showMoodPicker, setShowMoodPicker] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showTidiedResult, setShowTidiedResult] = useState(false);
+  const [aiTidiedResult, setAiTidiedResult] = useState('');
+  const [previewData, setPreviewData] = useState<{
+    moodData: { emoji: string; label: string; intensity: number } | null;
+    tags: string[];
+    finalContent: string;
+    finalTitle: string;
+  }>({ moodData: null, tags: [], finalContent: '', finalTitle: '' });
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -143,13 +144,135 @@ export default function EntryDetail() {
 
   const handleSave = async () => {
     if (!entry) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const result = await updateEntry(entry.id, editTitle, editContent, editMood, editTags, entry.category_id);
-      
+      let finalContent = editContent;
+      let shouldShowTidyResult = false;
+
+      // Get AI settings from localStorage
+      const autoTidyUp = JSON.parse(localStorage.getItem('autoTidyUp') || 'false');
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'true');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'true');
+
+      // Tidy up content if enabled
+      if (autoTidyUp) {
+        try {
+          const tidyResponse = await fetch('/api/ai/tidy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: editContent }),
+          });
+
+          if (tidyResponse.ok) {
+            const { tidiedText } = await tidyResponse.json();
+            if (tidiedText && tidiedText !== editContent) {
+              finalContent = tidiedText;
+              shouldShowTidyResult = true;
+            }
+          }
+        } catch (error) {
+          console.error('Tidy up failed:', error);
+        }
+      }
+
+      // Default values
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Edit Mood API Response:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          } else {
+            console.error('Edit Mood API Error:', moodResponse.status, await moodResponse.text());
+          }
+        } catch (error) {
+          console.error('Edit Mood detection failed:', error);
+        }
+      }
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Edit Tags API Response:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          } else {
+            console.error('Edit Tags API Error:', tagsResponse.status, await tagsResponse.text());
+          }
+        } catch (error) {
+          console.error('Edit Tag generation failed:', error);
+        }
+      }
+
+      // If tidying is enabled and there's a tidied version different from original, show tidied modal first
+      if (shouldShowTidyResult) {
+        setAiTidiedResult(finalContent);
+        setShowTidiedResult(true);
+        setIsSaving(false);
+        return;
+      }
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+        finalTitle: editTitle,
+      });
+      setShowPreviewModal(true);
+      setIsSaving(false);
+
+    } catch (error: any) {
+      console.error('Generate preview error:', error);
+      setError(error.message || 'Failed to generate preview');
+      setIsSaving(false);
+    }
+  };
+
+  const handleContinueFromPreview = async () => {
+    if (!entry) return;
+
+    setShowPreviewModal(false);
+    setIsSaving(true);
+
+    try {
+      const { moodData, tags, finalContent, finalTitle } = previewData;
+
+      // Use default values if not detected
+      const mood = moodData?.emoji || '😊';
+      const moodIntensity = moodData?.intensity || 5;
+
+      // Update entry with AI-detected mood and tags
+      const result = await updateEntry(entry.id, finalTitle, finalContent, mood, tags, entry.category_id, moodIntensity);
+
       if (result.error) {
         setError(result.error);
       } else {
@@ -159,98 +282,168 @@ export default function EntryDetail() {
       }
     } catch (error: any) {
       setError(error.message || 'Failed to update entry');
+      setShowPreviewModal(false); // Close modal on error
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleTidyUp = async () => {
-    if (!editContent.trim()) return;
-    
-    setIsTidying(true);
-    setError(null);
-    
+  // Accept tidied result and continue to preview
+  const acceptTidiedResult = async () => {
+    setShowTidiedResult(false);
+    setIsSaving(true);
+
     try {
-      // Run tidy up, mood analysis, and auto-tagging in parallel
-      const [tidyResponse, moodResponse, tagsResponse] = await Promise.all([
-        fetch('/api/ai/tidy', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content: editContent }),
-        }),
-        fetch('/api/ai/mood', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content: editContent }),
-        }),
-        fetch('/api/ai/tags', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content: editContent }),
-        })
-      ]);
-      
-      if (!tidyResponse.ok) throw new Error('Failed to tidy up text');
-      if (!moodResponse.ok) throw new Error('Failed to detect mood');
-      if (!tagsResponse.ok) throw new Error('Failed to generate tags');
-      
-      const { tidiedText } = await tidyResponse.json();
-      const moodData = await moodResponse.json();
-      const tagsData = await tagsResponse.json();
-      
-      // Set tidied text
-      setAiResult(tidiedText);
-      setEditedAiResult(tidiedText);
-      
-      // Set mood data
-      if (moodData?.emoji) {
-        setEditMood(moodData.emoji);
-        setAiDetectedMood(moodData.emoji);
+      // Use the tidied content
+      const finalContent = aiTidiedResult;
+
+      // Generate AI insights with tidied content
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
+
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Edit Mood API Response after tidy accept:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Mood detection failed after tidy in edit:', error);
+        }
       }
-      
-      // Set tag suggestions
-      if (tagsData?.suggestedTags && Array.isArray(tagsData.suggestedTags)) {
-        setAiSuggestedTags(tagsData.suggestedTags);
-        setShowTagSuggestions(true);
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Edit Tags API Response after tidy accept:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          }
+        } catch (error) {
+          console.error('Tag generation failed after tidy in edit:', error);
+        }
       }
-      
-      setShowAiResult(true);
-      setIsEditingAiResult(false);
-    } catch (error) {
-      console.error('Error processing with AI:', error);
-      setError('Failed to process with AI. Please try again.');
-    } finally {
-      setIsTidying(false);
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+        finalTitle: editTitle,
+      });
+      setShowPreviewModal(true);
+      setIsSaving(false);
+
+    } catch (error: any) {
+      console.error('Preview generation after tidy accept in edit error:', error);
+      setError(error.message || 'Failed to generate preview');
+      setIsSaving(false);
     }
   };
 
-  const handleAcceptAiResult = () => {
-    setEditContent(aiResult);
-    setShowAiResult(false);
-    setAiResult('');
-    setEditedAiResult('');
-  };
+  // Reject tidied result and continue to preview with original
+  const rejectTidiedResult = async () => {
+    setShowTidiedResult(false);
+    setIsSaving(true);
 
-  const handleEditAiResult = () => {
-    setIsEditingAiResult(true);
-  };
+    try {
+      // Use the original content
+      const finalContent = editContent;
 
-  const handleSaveEditedAiResult = () => {
-    setAiResult(editedAiResult);
-    setIsEditingAiResult(false);
-  };
+      // Generate AI insights with original content
+      let moodData: { emoji: string; label: string; intensity: number } | null = null;
+      let tags: string[] = [];
 
-  const handleCancelAiResult = () => {
-    setShowAiResult(false);
-    setAiResult('');
-    setEditedAiResult('');
-    setIsEditingAiResult(false);
+      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
+      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+
+      // Detect mood if enabled
+      if (autoMoodDetection) {
+        try {
+          const moodResponse = await fetch('/api/ai/mood', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (moodResponse.ok) {
+            const moodApiData = await moodResponse.json();
+            console.log('Edit Mood API Response after tidy reject:', moodApiData);
+            if (moodApiData.label && moodApiData.emoji) {
+              moodData = {
+                emoji: moodApiData.emoji,
+                label: moodApiData.label,
+                intensity: moodApiData.intensity || 5,
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Mood detection failed after tidy in edit:', error);
+        }
+      }
+
+      // Detect tags if enabled
+      if (autoTagGeneration) {
+        try {
+          const tagsResponse = await fetch('/api/ai/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: finalContent }),
+          });
+
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            console.log('Edit Tags API Response after tidy reject:', tagsData);
+            if (Array.isArray(tagsData.suggestedTags)) {
+              tags = tagsData.suggestedTags;
+            }
+          }
+        } catch (error) {
+          console.error('Tag generation failed after tidy in edit:', error);
+        }
+      }
+
+      // Set preview data and show preview modal
+      setPreviewData({
+        moodData,
+        tags,
+        finalContent,
+        finalTitle: editTitle,
+      });
+      setShowPreviewModal(true);
+      setIsSaving(false);
+
+    } catch (error: any) {
+      console.error('Preview generation after tidy reject in edit error:', error);
+      setError(error.message || 'Failed to generate preview');
+      setIsSaving(false);
+    }
   };
 
   const addTag = () => {
@@ -270,13 +463,6 @@ export default function EntryDetail() {
       e.preventDefault();
       addTag();
     }
-  };
-
-  const acceptSuggestedTags = () => {
-    const newTags = [...new Set([...editTags, ...aiSuggestedTags])].slice(0, 5);
-    setEditTags(newTags);
-    setShowTagSuggestions(false);
-    setAiSuggestedTags([]);
   };
 
   const handleDelete = async () => {
@@ -402,199 +588,6 @@ export default function EntryDetail() {
           </div>
         </nav>
       </header>
-
-      {/* AI Result Modal */}
-      {showAiResult && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-            isDarkMode 
-              ? "bg-slate-800/90 border-slate-700" 
-              : "bg-white/90 border-gray-200"
-          }`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-xl font-bold ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}>
-                AI Tidied Result
-              </h3>
-              <button
-                onClick={handleCancelAiResult}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  isDarkMode 
-                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600" 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className={`mb-4 p-4 rounded-xl border ${
-              isDarkMode 
-                ? "bg-slate-700/50 border-slate-600" 
-                : "bg-gray-50 border-gray-200"
-            }`}>
-              <p className={`text-sm font-medium mb-2 ${
-                isDarkMode ? "text-gray-300" : "text-gray-600"
-              }`}>
-                Original text:
-              </p>
-              <p className={`text-sm ${
-                isDarkMode ? "text-gray-400" : "text-gray-500"
-              }`}>
-                {editContent}
-              </p>
-            </div>
-            
-            <div className={`mb-6 p-4 rounded-xl border ${
-              isDarkMode 
-                ? "bg-purple-900/20 border-purple-700" 
-                : "bg-purple-50 border-purple-200"
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-700"
-                }`}>
-                  AI improved version:
-                </p>
-                {!isEditingAiResult && (
-                  <button
-                    onClick={handleEditAiResult}
-                    className={`flex items-center space-x-1 text-sm font-medium hover:underline transition-all duration-200 ${
-                      isDarkMode ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-800"
-                    }`}
-                  >
-                    <FiEdit3 className="text-base" />
-                    <span>Edit</span>
-                  </button>
-                )}
-              </div>
-              
-              {isEditingAiResult ? (
-                <textarea
-                  value={editedAiResult}
-                  onChange={(e) => setEditedAiResult(e.target.value)}
-                  className={`w-full p-4 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
-                    isDarkMode
-                      ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                  }`}
-                  rows={8}
-                  placeholder="Edit AI result..."
-                />
-              ) : (
-                <p className={`text-sm leading-relaxed ${
-                  isDarkMode ? "text-gray-200" : "text-gray-700"
-                }`}>
-                  {aiResult}
-                </p>
-              )}
-            </div>
-            
-            <div className="flex space-x-3">
-              {isEditingAiResult ? (
-                <>
-                  <button
-                    onClick={handleSaveEditedAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-purple-900/50 text-purple-300 hover:bg-purple-800/50"
-                        : "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                    }`}
-                  >
-                    Save Changes
-                  </button>
-                  <button
-                    onClick={() => setIsEditingAiResult(false)}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    Cancel Edit
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleAcceptAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
-                  >
-                    Accept & Use This
-                  </button>
-                  <button
-                    onClick={handleCancelAiResult}
-                    className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDarkMode
-                        ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    Keep Original
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mood Picker Modal */}
-      {showMoodPicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`w-full max-w-md max-h-[80vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-            isDarkMode 
-              ? "bg-slate-800/90 border-slate-700" 
-              : "bg-white/90 border-gray-200"
-          }`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-xl font-bold ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}>
-                Select Mood
-              </h3>
-              <button
-                onClick={() => setShowMoodPicker(false)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  isDarkMode 
-                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600" 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {moodOptions.map((option) => (
-                <button
-                  key={option.mood}
-                  type="button"
-                  onClick={() => {
-                    setEditMood(option.emoji);
-                    setShowMoodPicker(false);
-                  }}
-                  className={`p-4 rounded-xl border transition-all duration-200 hover:scale-105 ${
-                    editMood === option.emoji
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-600 shadow-lg'
-                      : isDarkMode
-                        ? 'bg-slate-700 border-slate-600 text-gray-200 hover:bg-slate-600'
-                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">{option.emoji}</div>
-                  <div className="text-xs font-medium text-center">{option.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
@@ -749,71 +742,6 @@ export default function EntryDetail() {
           <div className="mb-6">
             {isEditing ? (
               <div className="space-y-6">
-                {/* AI Enhancement Buttons */}
-                <div className="mb-6">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      type="button"
-                      onClick={handleTidyUp}
-                      disabled={!editContent.trim() || isTidying}
-                      className={`flex-1 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
-                    >
-                      {isTidying ? 'AI Processing...' : '✨ Tidy Up, Analyze Mood & Tags'}
-                    </button>
-                  </div>
-                  <p className={`text-xs text-center mt-2 ${
-                    isDarkMode ? "text-gray-400" : "text-gray-600"
-                  }`}>
-                    AI will improve your writing, detect your mood, and suggest relevant tags automatically
-                  </p>
-                </div>
-
-                {/* AI Detected Mood Indicator */}
-                {aiDetectedMood && (
-                  <div className={`p-3 rounded-lg border ${
-                    isDarkMode ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200'
-                  }`}>
-                    <span className={`text-sm ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                      AI detected mood: {aiDetectedMood}
-                    </span>
-                  </div>
-                )}
-
-                {/* Tag Suggestions */}
-                {showTagSuggestions && aiSuggestedTags.length > 0 && (
-                  <div className={`p-4 rounded-lg border ${
-                    isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'
-                  }`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                        AI Suggested Tags:
-                      </span>
-                      <button
-                        onClick={acceptSuggestedTags}
-                        className={`text-sm px-3 py-1 rounded-lg transition-all duration-200 ${
-                          isDarkMode
-                            ? 'bg-blue-800 text-blue-200 hover:bg-blue-700'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        }`}
-                      >
-                        Accept All
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {aiSuggestedTags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className={`inline-block px-2 py-1 rounded-full text-xs ${
-                            isDarkMode ? 'bg-blue-800 text-blue-200' : 'bg-blue-100 text-blue-700'
-                          }`}
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${
                     isDarkMode ? "text-gray-300" : "text-gray-700"
@@ -833,34 +761,6 @@ export default function EntryDetail() {
                   />
                 </div>
                 
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}>
-                    Mood
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowMoodPicker(true)}
-                    className={`w-full px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 text-base flex items-center justify-between ${
-                      isDarkMode
-                        ? "bg-slate-700 border-slate-600 text-white"
-                        : "bg-white border-gray-300 text-gray-900"
-                    }`}
-                    style={{
-                      fontSize: '16px' // Prevents zoom on iOS
-                    }}
-                  >
-                    <span className="flex items-center space-x-2">
-                      <span className="text-xl">{editMood}</span>
-                      <span>{moodOptions.find(option => option.emoji === editMood)?.label || 'Select mood'}</span>
-                    </span>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
-
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${
                     isDarkMode ? "text-gray-300" : "text-gray-700"
@@ -969,12 +869,96 @@ export default function EntryDetail() {
         </div>
       </main>
 
+      {/* AI Tidied Result Modal */}
+      {showTidiedResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
+            isDarkMode
+              ? "bg-slate-800/90 border-slate-700"
+              : "bg-white/90 border-gray-200"
+          }`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-xl font-bold ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}>
+                AI Tidied Result (Edit)
+              </h3>
+              <button
+                onClick={rejectTidiedResult}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  isDarkMode
+                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className={`mb-4 p-4 rounded-xl border ${
+              isDarkMode
+                ? "bg-slate-700/50 border-slate-600"
+                : "bg-gray-50 border-gray-200"
+            }`}>
+              <p className={`text-sm font-medium mb-2 ${
+                isDarkMode ? "text-gray-300" : "text-gray-600"
+              }`}>
+                Original text:
+              </p>
+              <p className={`text-sm ${
+                isDarkMode ? "text-gray-400" : "text-gray-500"
+              }`}>
+                {editContent}
+              </p>
+            </div>
+
+            <div className={`mb-6 p-4 rounded-xl border ${
+              isDarkMode
+                ? "bg-purple-900/20 border-purple-700"
+                : "bg-purple-50 border-purple-200"
+            }`}>
+              <p className={`text-sm font-medium mb-2 ${
+                isDarkMode ? "text-purple-300" : "text-purple-700"
+              }`}>
+                AI improved version:
+              </p>
+              <p className={`text-sm leading-relaxed ${
+                isDarkMode ? "text-gray-200" : "text-gray-700"
+              }`}>
+                {aiTidiedResult}
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={acceptTidiedResult}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+              >
+                Use This Version
+              </button>
+              <button
+                onClick={rejectTidiedResult}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 ${
+                  isDarkMode
+                    ? "bg-slate-700 text-gray-200 hover:bg-slate-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Keep Original
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className={`w-full max-w-md p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-            isDarkMode 
-              ? "bg-slate-800/90 border-slate-700" 
+            isDarkMode
+              ? "bg-slate-800/90 border-slate-700"
               : "bg-white/90 border-gray-200"
           }`}>
             <h3 className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
@@ -1015,6 +999,17 @@ export default function EntryDetail() {
         onClose={() => setShowExportModal(false)}
         entry={entry}
         exportType="single"
+      />
+
+      {/* AI Preview Modal */}
+      <PreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onContinue={handleContinueFromPreview}
+        isDarkMode={isDarkMode}
+        moodData={previewData.moodData}
+        tags={previewData.tags}
+        isSubmitting={isSaving}
       />
     </div>
   );

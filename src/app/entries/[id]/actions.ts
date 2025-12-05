@@ -58,7 +58,7 @@ export async function getEntry(id: string) {
   }
 }
 
-export async function updateEntry(id: string, title: string, content: string, mood: string, tags: string[], categoryId?: string) {
+export async function updateEntry(id: string, title: string, content: string, mood: string, tags: string[], categoryId?: string, moodIntensity?: number) {
   try {
     const supabase = await createClient();
     
@@ -86,6 +86,48 @@ export async function updateEntry(id: string, title: string, content: string, mo
     if (error) {
       console.error('Database error:', error);
       return { error: 'Failed to update entry' };
+    }
+    
+    // Also update mood in moods table if mood has changed
+    if (mood) {
+      // First check if mood record exists
+      const { data: existingMood } = await supabase
+        .from('moods')
+        .select('id')
+        .eq('entry_id', id)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (existingMood) {
+        // Update existing mood record
+        const { error: moodError } = await supabase
+          .from('moods')
+          .update({ 
+            mood,
+            intensity: moodIntensity || 5,
+            updated_at: new Date().toISOString()
+          })
+          .eq('entry_id', id)
+          .eq('user_id', user.id);
+        
+        if (moodError) {
+          console.error('Error updating mood in moods table:', moodError);
+        }
+      } else {
+        // Create new mood record
+        const { error: moodError } = await supabase
+          .from('moods')
+          .insert([{
+            user_id: user.id,
+            entry_id: id,
+            mood,
+            intensity: moodIntensity || 5
+          }]);
+        
+        if (moodError) {
+          console.error('Error creating mood in moods table:', moodError);
+        }
+      }
     }
     
     return { success: true };
