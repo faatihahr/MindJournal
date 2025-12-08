@@ -222,27 +222,8 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    try {
-      // Clear any stored user data
-      localStorage.removeItem('theme');
-      localStorage.removeItem('supabase.auth.token');
-      localStorage.removeItem('supabase.auth.refreshToken');
-      
-      // Call the signout endpoint to properly logout from Supabase
-      await fetch('/auth/signout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      // Redirect to login page
-      window.location.href = '/auth/login';
-    } catch (error) {
-      // Even if there's an error, still redirect to login
-      console.error('Logout error:', error);
-      window.location.href = '/auth/login';
-    }
+    // Redirect to signout page for proper handling
+    window.location.href = '/auth/signout';
   };
 
   // Close dropdown when clicking outside
