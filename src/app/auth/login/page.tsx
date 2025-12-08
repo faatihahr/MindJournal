@@ -18,12 +18,15 @@ export default function Login() {
   const message = searchParams.get('message');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add("dark");
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add("dark");
+      }
     }
   }, []);
 
@@ -31,12 +34,15 @@ export default function Login() {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
     
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      if (newTheme) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
     }
   };
 
@@ -57,7 +63,9 @@ export default function Login() {
         setError(result.error);
       } else if (result?.success) {
         // Success - clean redirect to dashboard
-        window.location.href = '/dashboard';
+        if (typeof window !== 'undefined') {
+          window.location.href = '/dashboard';
+        }
       } else {
         setError('An unexpected error occurred');
       }
