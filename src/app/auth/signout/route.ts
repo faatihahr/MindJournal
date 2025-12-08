@@ -5,6 +5,11 @@ export async function POST() {
     // Create a response
     const response = NextResponse.json({ success: true });
     
+    // Get the current domain for cookie clearing
+    const request = await import('next/headers').then(mod => mod.headers());
+    const host = request.get('host') || '';
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    
     // Clear ALL possible Supabase auth cookies with different variations
     const cookiesToClear = [
       'sb-access-token',
@@ -23,7 +28,7 @@ export async function POST() {
     ];
     
     cookiesToClear.forEach(cookieName => {
-      // Try multiple variations to ensure deletion
+      // Clear with root path
       response.cookies.delete(cookieName);
       response.cookies.set(cookieName, '', { 
         path: '/',
@@ -31,23 +36,44 @@ export async function POST() {
         maxAge: 0,
         sameSite: 'lax'
       });
-      response.cookies.set(cookieName, '', { 
-        path: '/', 
-        domain: 'localhost',
-        expires: new Date(0),
-        maxAge: 0,
-        sameSite: 'lax'
-      });
-      response.cookies.set(cookieName, '', { 
-        path: '/', 
-        domain: '.localhost',
-        expires: new Date(0),
-        maxAge: 0,
-        sameSite: 'lax'
-      });
+      
+      // For localhost, clear with localhost domain
+      if (isLocalhost) {
+        response.cookies.set(cookieName, '', { 
+          path: '/', 
+          domain: 'localhost',
+          expires: new Date(0),
+          maxAge: 0,
+          sameSite: 'lax'
+        });
+        response.cookies.set(cookieName, '', { 
+          path: '/', 
+          domain: '.localhost',
+          expires: new Date(0),
+          maxAge: 0,
+          sameSite: 'lax'
+        });
+      } else {
+        // For production, clear with current domain
+        const domain = host.split(':')[0]; // Remove port if present
+        response.cookies.set(cookieName, '', { 
+          path: '/', 
+          domain: domain,
+          expires: new Date(0),
+          maxAge: 0,
+          sameSite: 'lax'
+        });
+        response.cookies.set(cookieName, '', { 
+          path: '/', 
+          domain: `.${domain}`,
+          expires: new Date(0),
+          maxAge: 0,
+          sameSite: 'lax'
+        });
+      }
     });
     
-    console.log('Server-side sign out: All cookies cleared aggressively');
+    console.log(`Server-side sign out: All cookies cleared for domain: ${host}`);
     
     return response;
   } catch (error) {

@@ -223,10 +223,14 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     try {
+      console.log('Logout: Starting logout process');
+      
       // Clear client-side storage
       localStorage.removeItem('theme');
       localStorage.removeItem('supabase.auth.token');
       localStorage.removeItem('supabase.auth.refreshToken');
+      
+      console.log('Logout: Client storage cleared');
       
       // Call the signout route to clear server-side cookies
       const response = await fetch('/auth/signout', {
@@ -237,11 +241,15 @@ export default function Dashboard() {
         redirect: 'manual' // Prevent automatic redirect handling
       });
       
+      console.log('Logout: Signout API response status:', response.status);
+      
       // Manually redirect to login page after successful signout
+      console.log('Logout: Redirecting to login page');
       window.location.href = '/auth/login';
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: redirect to login page directly
+      console.log('Logout: Error occurred, fallback redirect to login');
       window.location.href = '/auth/login';
     }
   };
