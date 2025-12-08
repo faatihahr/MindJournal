@@ -41,12 +41,14 @@ export default function NewEntry() {
     console.log('New Entry: Loading form (auth handled by middleware)');
 
     // Initialize dark mode
-    const savedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add("dark");
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add("dark");
+      }
     }
 
     // Initialize speech recognition if available
@@ -123,12 +125,15 @@ export default function NewEntry() {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
 
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      if (newTheme) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
     }
   };
 
@@ -157,9 +162,9 @@ export default function NewEntry() {
       let shouldShowTidyResult = false;
 
       // Get AI settings
-      const autoTidyUp = JSON.parse(localStorage.getItem('autoTidyUp') || 'false');
-      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
-      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+      const autoTidyUp = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoTidyUp') || 'false') : false;
+      const autoMoodDetection = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoMoodDetection') || 'true') : true;
+      const autoTagGeneration = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoTagGeneration') || 'true') : true;
 
       // Tidy up content if enabled
       if (autoTidyUp) {
@@ -317,8 +322,8 @@ export default function NewEntry() {
       let moodData: { emoji: string; label: string; intensity: number } | null = null;
       let tags: string[] = [];
 
-      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
-      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+      const autoMoodDetection = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoMoodDetection') || 'true') : true;
+      const autoTagGeneration = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoTagGeneration') || 'true') : true;
 
       // Detect mood if enabled
       if (autoMoodDetection) {
@@ -395,8 +400,8 @@ export default function NewEntry() {
       let moodData: { emoji: string; label: string; intensity: number } | null = null;
       let tags: string[] = [];
 
-      const autoMoodDetection = JSON.parse(localStorage.getItem('autoMoodDetection') || 'false');
-      const autoTagGeneration = JSON.parse(localStorage.getItem('autoTagGeneration') || 'false');
+      const autoMoodDetection = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoMoodDetection') || 'true') : true;
+      const autoTagGeneration = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('autoTagGeneration') || 'true') : true;
 
       // Detect mood if enabled
       if (autoMoodDetection) {

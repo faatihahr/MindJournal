@@ -13,38 +13,47 @@ export default function Settings() {
   const router = useRouter();
 
   useEffect(() => {
-    // Initialize settings from localStorage
-    const savedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add("dark");
-    }
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      // Initialize settings from localStorage
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add("dark");
+      }
 
-    // Load AI settings
-    setAutoTidyUp(JSON.parse(localStorage.getItem('autoTidyUp') || 'false'));
-    setAutoMoodDetection(JSON.parse(localStorage.getItem('autoMoodDetection') || 'true'));
-    setAutoTagGeneration(JSON.parse(localStorage.getItem('autoTagGeneration') || 'true'));
+      // Load AI settings
+      setAutoTidyUp(JSON.parse(localStorage.getItem('autoTidyUp') || 'false'));
+      setAutoMoodDetection(JSON.parse(localStorage.getItem('autoMoodDetection') || 'true'));
+      setAutoTagGeneration(JSON.parse(localStorage.getItem('autoTagGeneration') || 'true'));
+    }
   }, []);
 
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
     
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      if (newTheme) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
     }
   };
 
   const saveSettings = () => {
-    localStorage.setItem('autoTidyUp', autoTidyUp.toString());
-    localStorage.setItem('autoMoodDetection', autoMoodDetection.toString());
-    localStorage.setItem('autoTagGeneration', autoTagGeneration.toString());
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('autoTidyUp', autoTidyUp.toString());
+      localStorage.setItem('autoMoodDetection', autoMoodDetection.toString());
+      localStorage.setItem('autoTagGeneration', autoTagGeneration.toString());
+    }
     
     // Show success message
     alert('Settings saved successfully!');
@@ -134,7 +143,9 @@ export default function Settings() {
                     onClick={() => {
                       const newValue = !autoTidyUp;
                       setAutoTidyUp(newValue);
-                      localStorage.setItem('autoTidyUp', JSON.stringify(newValue));
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('autoTidyUp', JSON.stringify(newValue));
+                      }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                       autoTidyUp ? 'bg-purple-600' : 'bg-gray-300'
@@ -170,7 +181,9 @@ export default function Settings() {
                     onClick={() => {
                       const newValue = !autoMoodDetection;
                       setAutoMoodDetection(newValue);
-                      localStorage.setItem('autoMoodDetection', JSON.stringify(newValue));
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('autoMoodDetection', JSON.stringify(newValue));
+                      }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                       autoMoodDetection ? 'bg-purple-600' : 'bg-gray-300'
@@ -206,7 +219,9 @@ export default function Settings() {
                     onClick={() => {
                       const newValue = !autoTagGeneration;
                       setAutoTagGeneration(newValue);
-                      localStorage.setItem('autoTagGeneration', JSON.stringify(newValue));
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('autoTagGeneration', JSON.stringify(newValue));
+                      }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                       autoTagGeneration ? 'bg-purple-600' : 'bg-gray-300'

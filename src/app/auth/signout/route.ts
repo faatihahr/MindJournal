@@ -1,7 +1,31 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
   try {
+    // Create Supabase client and sign out
+    const supabase = await createClient();
+    
+    // First check if there's an active session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Session check error:', sessionError);
+    }
+    
+    if (session) {
+      // If session exists, try to sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Supabase sign out error:', error);
+      } else {
+        console.log('Supabase sign out successful');
+      }
+    } else {
+      console.log('No active session found - user already signed out');
+    }
+    
     // Create a response
     const response = NextResponse.json({ success: true });
     

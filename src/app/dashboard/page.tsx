@@ -245,12 +245,13 @@ export default function Dashboard() {
       
       // Manually redirect to login page after successful signout
       console.log('Logout: Redirecting to login page');
-      window.location.href = '/auth/login';
+      // Use window.location for hard redirect to ensure fresh state
+      window.location.replace('/auth/login');
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: redirect to login page directly
       console.log('Logout: Error occurred, fallback redirect to login');
-      window.location.href = '/auth/login';
+      window.location.replace('/auth/login');
     }
   };
 
