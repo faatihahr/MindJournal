@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function POST() {
   try {
-    // Create a response that redirects to login
-    const response = NextResponse.redirect(new URL('/auth/login', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
+    // Create a response
+    const response = NextResponse.json({ success: true });
     
     // Clear ALL possible Supabase auth cookies with different variations
     const cookiesToClear = [

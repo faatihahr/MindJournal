@@ -228,13 +228,17 @@ export default function Dashboard() {
       localStorage.removeItem('supabase.auth.token');
       localStorage.removeItem('supabase.auth.refreshToken');
       
-      // Call the signout route to clear server-side cookies and redirect
-      await fetch('/auth/signout', {
+      // Call the signout route to clear server-side cookies
+      const response = await fetch('/auth/signout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        redirect: 'manual' // Prevent automatic redirect handling
       });
+      
+      // Manually redirect to login page after successful signout
+      window.location.href = '/auth/login';
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: redirect to login page directly
