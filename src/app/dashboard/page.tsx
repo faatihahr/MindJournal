@@ -222,8 +222,24 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    // Redirect to signout page for proper handling
-    window.location.href = '/auth/signout';
+    try {
+      // Clear client-side storage
+      localStorage.removeItem('theme');
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('supabase.auth.refreshToken');
+      
+      // Call the signout route to clear server-side cookies and redirect
+      await fetch('/auth/signout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback: redirect to login page directly
+      window.location.href = '/auth/login';
+    }
   };
 
   // Close dropdown when clicking outside
