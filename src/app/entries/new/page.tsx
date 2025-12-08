@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { createEntry } from './actions';
-import { FiMic, FiMicOff, FiEdit3, FiSun, FiMoon } from 'react-icons/fi';
+import { FiMic, FiMicOff, FiEdit3, FiSun, FiMoon, FiFileText } from 'react-icons/fi';
 import { PreviewModal } from '@/components/preview-modal';
+import { TemplatePicker } from '@/components/template-picker';
 
 export default function NewEntry() {
   const [content, setContent] = useState('');
@@ -25,6 +26,7 @@ export default function NewEntry() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('id-ID');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const recognitionRef = useRef<any>(null);
   const router = useRouter();
 
@@ -128,6 +130,11 @@ export default function NewEntry() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
+  };
+
+  const handleSelectTemplate = (template: string) => {
+    setContent(template);
+    setShowTemplatePicker(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -456,27 +463,27 @@ export default function NewEntry() {
   const generateTitleFromContent = (content: string) => {
     const words = content.trim().split(' ');
     if (words.length <= 5) return content;
-    
+
     // Take first 5 words and add "..."
     return words.slice(0, 5).join(' ') + '...';
   };
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode 
-        ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-        : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+      isDarkMode
+        ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900"
+        : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
     }`}>
       {/* Header */}
       <header className="relative z-10">
         <nav className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <button 
-                onClick={() => window.location.href = '/dashboard'} 
+              <button
+                onClick={() => window.location.href = '/dashboard'}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  isDarkMode 
-                    ? "bg-slate-800 text-gray-300 hover:bg-slate-700" 
+                  isDarkMode
+                    ? "bg-slate-800 text-gray-300 hover:bg-slate-700"
                     : "bg-white text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -494,8 +501,8 @@ export default function NewEntry() {
             <button
               onClick={toggleTheme}
               className={`p-2 rounded-lg transition-all duration-200 ${
-                isDarkMode 
-                  ? "bg-slate-800 text-yellow-400 hover:bg-slate-700" 
+                isDarkMode
+                  ? "bg-slate-800 text-yellow-400 hover:bg-slate-700"
                   : "bg-white text-gray-700 hover:bg-gray-100"
               }`}
               aria-label="Toggle theme"
@@ -575,7 +582,7 @@ export default function NewEntry() {
             <div className="flex space-x-3">
               <button
                 onClick={acceptTidiedResult}
-                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-linear-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
               >
                 Use This Version
               </button>
@@ -597,8 +604,8 @@ export default function NewEntry() {
       {/* Main Content */}
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className={`max-w-4xl mx-auto p-4 sm:p-6 md:p-8 rounded-2xl backdrop-blur-sm border transition-all duration-300 ${
-          isDarkMode 
-            ? "bg-slate-800/50 border-slate-700" 
+          isDarkMode
+            ? "bg-slate-800/50 border-slate-700"
             : "bg-white/70 border-gray-200"
         }`}>
           {/* Content */}
@@ -609,59 +616,41 @@ export default function NewEntry() {
               What's on your mind?
             </label>
             <div className="relative">
-              <textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                  isDarkMode
-                    ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm"
-                    : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
-                }`}
-                placeholder="Share your thoughts, feelings, or experiences..."
-                rows={8}
-              />
-              <div className={`absolute bottom-3 right-3 text-sm ${
-                isNearLimit ? (isOverLimit ? "text-red-500" : "text-yellow-500") : 
-                isDarkMode ? "text-gray-400" : "text-gray-500"
-              }`}>
-                {charCount}/{MAX_CHARS}
-              </div>
-              {/* Voice Controls */}
-              <div className="absolute bottom-3 right-20 flex items-center space-x-2">
-                {/* Language Selector */}
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+              <div className="flex flex-col space-y-3">
+                {/* Template Button */}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatePicker(true)}
+                    className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 hover:scale-105 ${
+                      isDarkMode
+                        ? "bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
+                        : "bg-purple-100 text-purple-600 hover:bg-purple-200"
+                    }`}
+                    title="Use journal template"
+                  >
+                    <FiFileText className="text-base" />
+                    <span>Use Template</span>
+                  </button>
+                </div>
+                <textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
                     isDarkMode
-                      ? "bg-slate-700/50 border-slate-600 text-white"
-                      : "bg-white/70 border-gray-300 text-gray-900"
+                      ? "bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 backdrop-blur-sm"
+                      : "bg-white/70 border-gray-200 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
                   }`}
-                  disabled={isRecording}
-                >
-                  <option value="id-ID">🇮🇩</option>
-                  <option value="en-US">🇺🇸</option>
-                </select>
-                {/* Voice Input Button */}
-                <button
-                  type="button"
-                  onClick={toggleRecording}
-                  className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
-                    isRecording
-                      ? 'bg-red-500 text-white shadow-lg animate-pulse'
-                      : isDarkMode
-                        ? 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30'
-                        : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                  }`}
-                  title="Voice input"
-                >
-                  {isRecording ? (
-                    <FiMicOff className="text-sm" />
-                  ) : (
-                    <FiMic className="text-sm" />
-                  )}
-                </button>
+                  placeholder="Share your thoughts, feelings, or experiences..."
+                  rows={8}
+                />
+                <div className={`text-sm ${
+                  isNearLimit ? (isOverLimit ? "text-red-500" : "text-yellow-500") :
+                  isDarkMode ? "text-gray-400" : "text-gray-500"
+                }`}>
+                  Character Count: {charCount}/{MAX_CHARS}
+                </div>
               </div>
             </div>
             {isOverLimit && (
@@ -669,7 +658,7 @@ export default function NewEntry() {
                 Content exceeds maximum character limit
               </p>
             )}
-            
+
             {/* Recording Status & Transcript (only show when recording) */}
             {isRecording && (
               <div className={`mt-4 p-4 rounded-xl border transition-all duration-300 ${
@@ -687,7 +676,7 @@ export default function NewEntry() {
                 </div>
               </div>
             )}
-            
+
             {transcript && !isRecording && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-3">
@@ -722,7 +711,7 @@ export default function NewEntry() {
                     </button>
                   </div>
                 </div>
-                
+
                 {isEditing ? (
                   <div className="space-y-3">
                     <textarea
@@ -740,7 +729,7 @@ export default function NewEntry() {
                       <button
                         type="button"
                         onClick={saveEditedTranscript}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+                        className="px-4 py-2 bg-linear-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
                       >
                         Save
                       </button>
@@ -779,8 +768,8 @@ export default function NewEntry() {
 
           {/* Footer Actions */}
           <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-6 border-t transition-all duration-200 ${
-            isDarkMode 
-              ? "border-slate-700" 
+            isDarkMode
+              ? "border-slate-700"
               : "border-gray-200"
           }`}>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -804,7 +793,7 @@ export default function NewEntry() {
                     ? 'bg-gray-400 cursor-not-allowed'
                     : isOverLimit
                     ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
+                    : 'bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
                 }`}
               >
                 {isSubmitting ? (
@@ -831,6 +820,15 @@ export default function NewEntry() {
         tags={previewData.tags}
         isSubmitting={isSubmitting}
       />
+
+      {/* Template Picker Modal */}
+      {showTemplatePicker && (
+        <TemplatePicker
+          onSelectTemplate={handleSelectTemplate}
+          onClose={() => setShowTemplatePicker(false)}
+          isDarkMode={isDarkMode}
+        />
+      )}
     </div>
   );
 }

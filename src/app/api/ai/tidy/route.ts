@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 function detectLanguage(content: string): string {
   // More sophisticated language detection
   const lowerContent = content.toLowerCase().trim();
-  
+
   // Common Indonesian words and phrases
   const indonesianWords = [
     'yang', 'dan', 'di', 'ke', 'dari', 'untuk', 'dengan', 'pada', 'adalah', 'ini',
@@ -18,7 +18,7 @@ function detectLanguage(content: string): string {
     'selamat', 'terima', 'kasih', 'maaf', 'tolong', 'mohon', 'silahkan', 'jangan',
     'apa', 'bagaimana', 'kenapa', 'kapan', 'dimana', 'siapa', 'berapa', 'mana'
   ];
-  
+
   // Common English words and phrases
   const englishWords = [
     'the', 'and', 'to', 'of', 'in', 'for', 'with', 'on', 'at', 'from', 'by',
@@ -79,11 +79,11 @@ function detectLanguage(content: string): string {
     // For very short texts, prioritize pattern matching over word counting
     if (indonesianScore > englishScore) return 'indonesian';
     if (englishScore > indonesianScore) return 'english';
-    
-    // If still tied, check for specific indicators
+
+    // If still tied, check for some specific indicators
     if (/\b(hello|hi|hey)\b/gi.test(lowerContent)) return 'english';
     if (/\b(hai|halo|hai)\b/gi.test(lowerContent)) return 'indonesian';
-    
+
     // Default to Indonesian for very short ambiguous texts
     return 'indonesian';
   }
@@ -97,48 +97,67 @@ function detectLanguage(content: string): string {
     // If tied, check for some specific indicators
     if (/\b(i|you|we|they)\b/gi.test(lowerContent)) return 'english';
     if (/\b(saya|aku|kamu|kami|mereka)\b/gi.test(lowerContent)) return 'indonesian';
-    
+
     // Default to Indonesian
     return 'indonesian';
   }
 }
 
-function generatePrompt(content: string, language: string): string {
+function generatePrompt(content: string, language: string, style: string): string {
+  // Define style-specific instructions
+  const styleInstructions = {
+    professional: language === 'indonesian'
+      ? `Rapikan teks menjadi gaya profesional dan terstruktur - gunakan bahasa formal, struktur kalimat yang jelas, dan nada yang netral.`
+      : `Make the text professional and well-structured - use formal language, clear sentence structure, and neutral tone.`,
+    casual: language === 'indonesian'
+      ? `Buat teks lebih kasual dan santai - gunakan kata-kata sehari-hari, singkatan yang umum, nada yang hangat seperti obrolan dengan teman dekat.`
+      : `Make the text more casual and conversational - use everyday words, common contractions, and warm tone like chatting with a close friend.`,
+    creative: language === 'indonesian'
+      ? `Transformasi teks menjadi lebih kreatif dan ekspresif - tambahkan metafora, deskripsi yang hidup, bahasa yang lebih imajinatif sambil tetap mempertahankan esensi asli.`
+      : `Transform the text into something more creative and expressive - add metaphors, vivid descriptions, and imaginative language while keeping the original essence intact.`,
+    formal: language === 'indonesian'
+      ? `Buat teks menggunakan gaya formal yang sangat resmi - gunakan kosakata yang akademis, struktur yang kompleks, dan bahasa yang sangat sopan.`
+      : `Write in a highly formal, academic style - use sophisticated vocabulary, complex sentence structures, and very polite language.`,
+    friendly: language === 'indonesian'
+      ? `Buat teks hangat dan mendukung seperti saran dari teman baik - gunakan bahasa yang ramah, empati, dan nada yang memberikan dukungan dan motivasi.`
+      : `Write in a warm and supportive tone like encouragement from a close friend or mentor - use friendly language, empathy, and supportive, motivational tone.`
+  };
+
+  const styleInstruction = styleInstructions[style as keyof typeof styleInstructions] || styleInstructions.professional;
+
   if (language === 'indonesian') {
-    return `Silakan perbaiki dan rapikan entri jurnal berikut agar lebih profesional dan terstruktur. Ikuti panduan ini:
+    return `Silakan rapikan dan perbaiki entri jurnal berikut sesuai dengan gaya yang diminta. Ikuti panduan ini:
+    - ${styleInstruction}
     - Perbaiki kesalahan tata bahasa dan ejaan
     - Tingkatkan struktur kalimat dan alur
-    - Pertahankan makna dan nada asli
-    - Buat lebih ringkas namun ekspresif
-    - Gunakan tanda baca dan kapitalisasi yang tepat
-    - Organisir pemikiran dengan lebih baik jika perlu
-    - Jangan tambahkan informasi baru atau ubah pesan inti
-    
+    - Pertahankan makna dan psan inti
+    - Buat lebih ringkas namun tetap ekspresif
+    - Jangan tambahkan informasi baru yang tidak ada di teks asli
+
     Teks asli:
     "${content}"
-    
+
     Kembalikan hanya versi yang diperbaiki tanpa teks atau penjelasan tambahan.`;
   } else {
-    return `Please tidy up and improve the following journal entry to make it more professional and well-structured. Follow these guidelines:
+    return `Please tidy up and improve the following journal entry in the requested style. Follow these guidelines:
+    - ${styleInstruction}
     - Fix grammar and spelling errors
     - Improve sentence structure and flow
-    - Maintain the original meaning and tone
+    - Maintain the original meaning and core message
     - Keep it concise but expressive
-    - Use proper punctuation and capitalization
-    - Organize thoughts better if needed
-    - Don't add new information or change the core message
-    
+    - Don't add new information not present in the original text
+
     Original text:
     "${content}"
-    
+
     Return only the improved version without any additional text or explanations.`;
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { content } = await request.json();
-    
+    const { content, style = 'professional' } = await request.json();
+
     if (!content || typeof content !== 'string') {
       console.error('Invalid content received:', { content });
       return NextResponse.json(
@@ -150,7 +169,7 @@ export async function POST(request: Request) {
     // Get API key from environment
     const apiKey = process.env.GEMINI_API_KEY;
     console.log('API Key check:', apiKey ? 'Key exists' : 'Key missing');
-    
+
     if (!apiKey) {
       console.error('GEMINI_API_KEY not configured');
       return NextResponse.json(
@@ -162,11 +181,14 @@ export async function POST(request: Request) {
     // Initialize Gemini AI
     const ai = new GoogleGenAI({});
 
-    // Create prompt for tidying up journal content based on detected language
+    // Create prompt for tidying up journal content based on detected language and style
     const detectedLanguage = detectLanguage(content);
-    const prompt = generatePrompt(content, detectedLanguage);
-    
+    const availableStyles = ['professional', 'casual', 'creative', 'formal', 'friendly'];
+    const validStyle = availableStyles.includes(style) ? style : 'professional';
+    const prompt = generatePrompt(content, detectedLanguage, validStyle);
+
     console.log('Detected language:', detectedLanguage);
+    console.log('Selected style:', validStyle);
     console.log('Calling Gemini AI with content length:', content.length);
 
     // Generate response

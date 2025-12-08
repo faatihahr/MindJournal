@@ -501,8 +501,8 @@ export default function EntryDetail() {
     return (
       <div className={`min-h-screen transition-colors duration-300 ${
         isDarkMode 
-          ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-          : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+          ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900" 
+          : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
       }`}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
@@ -515,8 +515,8 @@ export default function EntryDetail() {
     return (
       <div className={`min-h-screen transition-colors duration-300 ${
         isDarkMode 
-          ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-          : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+          ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900" 
+          : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
       }`}>
         <div className="flex items-center justify-center min-h-screen p-6">
           <div className={`max-w-md w-full p-8 rounded-2xl text-center ${
@@ -549,8 +549,8 @@ export default function EntryDetail() {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       isDarkMode 
-        ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-        : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+        ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900" 
+        : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
     }`}>
       {/* Header */}
       <header className="relative z-10">
@@ -679,7 +679,7 @@ export default function EntryDetail() {
                       isSaving 
                         ? 'opacity-50 cursor-not-allowed' 
                         : 'hover:scale-105'
-                    } bg-gradient-to-r from-purple-600 to-pink-600 text-white`}
+                    } bg-linear-to-r from-purple-600 to-pink-600 text-white`}
                   >
                     <FiSave />
                     <span>{isSaving ? 'Saving...' : 'Save'}</span>
@@ -831,7 +831,7 @@ export default function EntryDetail() {
                         editTags.length >= 5 || !tagInput.trim()
                           ? 'opacity-50 cursor-not-allowed'
                           : 'hover:scale-105'
-                      } bg-gradient-to-r from-purple-600 to-pink-600 text-white`}
+                      } bg-linear-to-r from-purple-600 to-pink-600 text-white`}
                     >
                       Add
                     </button>
@@ -934,7 +934,7 @@ export default function EntryDetail() {
             <div className="flex space-x-3">
               <button
                 onClick={acceptTidiedResult}
-                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 bg-linear-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
               >
                 Use This Version
               </button>

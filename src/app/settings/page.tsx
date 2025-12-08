@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiSettings, FiChevronLeft, FiMoon, FiSun, FiEdit3, FiZap } from 'react-icons/fi';
 
+
 export default function Settings() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [autoTidyUp, setAutoTidyUp] = useState(false);
@@ -52,8 +53,8 @@ export default function Settings() {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       isDarkMode 
-        ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-        : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+        ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900" 
+        : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
     }`}>
       {/* Header */}
       <header className="relative z-10">
@@ -73,7 +74,7 @@ export default function Settings() {
               <FiSettings className={`text-2xl ${isDarkMode ? "text-purple-400" : "text-purple-600"}`} />
               <h1 className={`text-2xl font-bold ${
                 isDarkMode ? "text-white" : "text-gray-900"
-              }`}>
+              }`} style={{ fontFamily: "'Fira Sans', 'Inter', sans-serif" }}>
                 Settings
               </h1>
             </div>
@@ -104,7 +105,7 @@ export default function Settings() {
           <div className="mb-8">
             <h2 className={`text-xl font-bold mb-6 flex items-center space-x-2 ${
               isDarkMode ? "text-white" : "text-gray-900"
-            }`}>
+            }`} style={{ fontFamily: "'Fira Sans', 'Inter', sans-serif" }}>
               <FiZap className={`text-xl ${isDarkMode ? "text-purple-400" : "text-purple-600"}`} />
               <span>AI Settings</span>
             </h2>
@@ -224,7 +225,7 @@ export default function Settings() {
           <div className="flex justify-end">
             <button
               onClick={saveSettings}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
+              className="px-6 py-3 bg-linear-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
             >
               Save Settings
             </button>

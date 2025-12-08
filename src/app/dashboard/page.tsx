@@ -12,6 +12,7 @@ import { DateEntriesModal } from '@/components/date-entries-modal';
 import { InsightsModal } from '@/components/insights-modal';
 import { MoodTrackerModal } from '@/components/mood-tracker-modal';
 import { StreakAnimation } from '@/components/streak-animation';
+import { FireIcon } from '@/components/fire-icon';
 import { ExportModal } from '@/components/export-modal';
 import { DateRangeExportModal } from '@/components/date-range-export-modal';
 
@@ -82,7 +83,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEntries, setSelectedDateEntries] = useState<JournalEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showStreakAnimation, setShowStreakAnimation] = useState(false);
+  const [isStreakExcited, setIsStreakExcited] = useState(false);
   const [aiGuidance, setAiGuidance] = useState<{ [key: string]: string }>({}); 
   const [loadingGuidance, setLoadingGuidance] = useState<{ [key: string]: boolean }>({}); 
   const [showInsightsModal, setShowInsightsModal] = useState(false);
@@ -595,32 +596,35 @@ export default function Dashboard() {
   useEffect(() => {
     const currentStreak = stats.currentStreak;
     const previousStreak = parseInt(localStorage.getItem('previousStreak') || '0');
-    
+
     // Check if we just came from creating a new entry
     const justCreatedEntry = sessionStorage.getItem('justCreatedEntry') === 'true';
-    
-    console.log('Streak Animation Debug:', {
+
+    console.log('Fire Icon Animation Debug:', {
       currentStreak,
       previousStreak,
       justCreatedEntry,
       shouldTrigger: currentStreak > previousStreak && currentStreak > 0
     });
-    
-    // Trigger animation if either:
+
+    // Trigger excited fire animation if either:
     // 1. Streak increased from previous value, OR
     // 2. We just created an entry and have a positive streak
     if ((currentStreak > previousStreak && currentStreak > 0) || (justCreatedEntry && currentStreak > 0)) {
-      console.log('Triggering streak animation!');
-      setShowStreakAnimation(true);
+      console.log('Triggering excited fire animation!');
+      setIsStreakExcited(true);
       localStorage.setItem('previousStreak', currentStreak.toString());
-      
+
       // Clear the session flag
       if (justCreatedEntry) {
         sessionStorage.removeItem('justCreatedEntry');
       }
-      
-      // Hide animation after 3 seconds
-      setTimeout(() => setShowStreakAnimation(false), 3000);
+
+      // Turn off excited animation after 3 seconds, back to normal burning
+      setTimeout(() => setIsStreakExcited(false), 3000);
+    } else if (currentStreak === 0 && previousStreak > 0) {
+      // Streak just became 0, make sure we're not excited
+      setIsStreakExcited(false);
     }
   }, [stats.currentStreak]);
 
@@ -632,11 +636,10 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       isDarkMode 
-        ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" 
-        : "bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50"
+        ? "bg-linear-to-br from-slate-900 via-purple-900 to-slate-900" 
+        : "bg-linear-to-br from-purple-50 via-pink-50 to-indigo-50"
     }`}>
-      {/* Streak Animation */}
-      <StreakAnimation show={showStreakAnimation} isDarkMode={isDarkMode} />
+      {/* Streak Animation (Removed - using FireIcon only) */}
       {/* Header */}
       <header className="relative z-10">
         <nav className="container mx-auto px-6 py-6">
@@ -785,8 +788,8 @@ export default function Dashboard() {
               onClick={() => setShowMoodTracker(true)}
               className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
                 isDarkMode 
-                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700" 
-                  : "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700"
+                  ? "bg-linear-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700" 
+                  : "bg-linear-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700"
               }`}
             >
               <FiHeart className={`text-lg mb-1 mx-auto`} />
@@ -882,7 +885,7 @@ export default function Dashboard() {
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
                 isDarkMode ? "bg-orange-900/50" : "bg-orange-100"
               }`}>
-                <span className="text-2xl">🔥</span>
+                <FireIcon streak={stats.currentStreak} isExcited={isStreakExcited} />
               </div>
               <FiStar className={`text-xl ${isDarkMode ? "text-yellow-400" : "text-yellow-600"}`} />
             </div>
@@ -1305,7 +1308,7 @@ export default function Dashboard() {
                     {selectedEntries.size > 0 && (
                       <button
                         onClick={() => setShowExportModal(true)}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 hover:scale-105 flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 hover:scale-105 flex items-center space-x-2 bg-linear-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg`}
                       >
                         <FiDownload className="w-4 h-4" />
                         <span>Export Selected</span>
@@ -1427,7 +1430,7 @@ export default function Dashboard() {
                         className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 shadow-md transform hover:scale-105 ${
                           loadingGuidance[entry.id]
                             ? 'bg-gray-400 text-white cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
+                            : 'bg-linear-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
                         }`}
                       >
                         {loadingGuidance[entry.id] ? (
@@ -1454,7 +1457,7 @@ export default function Dashboard() {
         <div className="md:hidden fixed bottom-6 right-6 z-50">
           <a
             href="/entries/new"
-            className="flex items-center justify-center w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
+            className="flex items-center justify-center w-14 h-14 bg-linear-to-r from-purple-600 to-pink-600 text-white rounded-full shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
           >
             <FiPlus className="text-xl" />
           </a>
@@ -1464,7 +1467,7 @@ export default function Dashboard() {
         <div className="hidden md:block fixed bottom-8 right-8">
           <a
             href="/entries/new"
-            className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
+            className="flex items-center space-x-2 px-6 py-3 bg-linear-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
           >
             <FiPlus className="text-xl" />
             <span>Write New Entry</span>
@@ -1498,8 +1501,8 @@ export default function Dashboard() {
         {/* Daily Quote Card */}
         <div className={`mt-8 p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
           isDarkMode 
-            ? "bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-purple-700" 
-            : "bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200"
+            ? "bg-linear-to-r from-purple-900/50 to-pink-900/50 border-purple-700" 
+            : "bg-linear-to-r from-purple-100 to-pink-100 border-purple-200"
         }`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
@@ -1692,8 +1695,8 @@ export default function Dashboard() {
                   <div className={`text-center p-3 md:p-4 rounded-lg ${
                     isDarkMode ? 'bg-slate-600' : 'bg-white'
                   }`}>
-                    <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      🔥
+                    <div className={`flex items-center justify-center w-8 h-8`}>
+                      <FireIcon streak={stats.currentStreak} isExcited={isStreakExcited} />
                     </div>
                     <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       {stats.currentStreak} day streak

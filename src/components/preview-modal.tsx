@@ -169,7 +169,7 @@ export function PreviewModal({
           <button
             onClick={onContinue}
             disabled={isSubmitting}
-            className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700`}
+            className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg bg-linear-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700`}
           >
             {isSubmitting ? (
               <div className="flex items-center justify-center space-x-2">
