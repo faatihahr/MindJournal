@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
   try {
+    console.log('Signout: Starting server-side signout process');
+    
     // Create Supabase client and sign out
     const supabase = await createClient();
     
@@ -14,6 +16,7 @@ export async function POST() {
     }
     
     if (session) {
+      console.log('Signout: Active session found, signing out...');
       // If session exists, try to sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
@@ -23,16 +26,18 @@ export async function POST() {
         console.log('Supabase sign out successful');
       }
     } else {
-      console.log('No active session found - user already signed out');
+      console.log('Signout: No active session found - user already signed out');
     }
     
-    // Create a response
-    const response = NextResponse.json({ success: true });
+    // Create a response with all cookies cleared
+    const response = NextResponse.json({ success: true, message: 'Signed out successfully' });
     
     // Get the current domain for cookie clearing
     const request = await import('next/headers').then(mod => mod.headers());
     const host = request.get('host') || '';
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    
+    console.log(`Signout: Clearing cookies for domain: ${host}`);
     
     // Clear ALL possible Supabase auth cookies with different variations
     const cookiesToClear = [
@@ -97,11 +102,11 @@ export async function POST() {
       }
     });
     
-    console.log(`Server-side sign out: All cookies cleared for domain: ${host}`);
+    console.log('Signout: Server-side signout completed');
     
     return response;
   } catch (error) {
-    console.error('Sign out server error:', error);
-    return NextResponse.json({ success: true });
+    console.error('Signout server error:', error);
+    return NextResponse.json({ success: true, message: 'Signout completed with errors' });
   }
 }

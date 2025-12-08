@@ -66,14 +66,18 @@ export async function middleware(request: NextRequest) {
     );
 
     const { data: { session } } = await supabase.auth.getSession();
+    
+    console.log(`Middleware: ${request.nextUrl.pathname} - Session: ${session ? 'exists' : 'none'}`);
 
     // Skip middleware for sign out page to allow it to process
     if (request.nextUrl.pathname === '/auth/signout') {
+      console.log('Middleware: Skipping signout page');
       return response;
     }
 
     // If user is not signed in and trying to access protected routes
     if (!session && request.nextUrl.pathname.startsWith('/dashboard')) {
+      console.log('Middleware: No session, redirecting to login from dashboard');
       const redirectUrl = new URL('/auth/login', request.url);
       redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
       return NextResponse.redirect(redirectUrl);
@@ -81,11 +85,13 @@ export async function middleware(request: NextRequest) {
 
     // If user is signed in and trying to access auth pages (except signout)
     if (session && request.nextUrl.pathname.startsWith('/auth') && request.nextUrl.pathname !== '/auth/signout') {
+      console.log('Middleware: User has session, redirecting from auth to dashboard');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     
     // Additional check: if accessing login page with session, redirect to dashboard
     if (session && request.nextUrl.pathname === '/auth/login') {
+      console.log('Middleware: User has session on login page, redirecting to dashboard');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     

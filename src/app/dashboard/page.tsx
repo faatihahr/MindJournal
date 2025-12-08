@@ -225,10 +225,12 @@ export default function Dashboard() {
     try {
       console.log('Logout: Starting logout process');
       
-      // Clear client-side storage
-      localStorage.removeItem('theme');
-      localStorage.removeItem('supabase.auth.token');
-      localStorage.removeItem('supabase.auth.refreshToken');
+      // Clear client-side storage first
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('theme');
+        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem('supabase.auth.refreshToken');
+      }
       
       console.log('Logout: Client storage cleared');
       
@@ -242,6 +244,9 @@ export default function Dashboard() {
       });
       
       console.log('Logout: Signout API response status:', response.status);
+      
+      // Add a small delay to ensure server-side processing completes
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Manually redirect to login page after successful signout
       console.log('Logout: Redirecting to login page');
