@@ -234,45 +234,19 @@ export default function Dashboard() {
       
       console.log('Logout: Client storage cleared');
       
-      // Call the signout route to clear server-side cookies
-      const response = await fetch('/auth/signout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        redirect: 'manual' // Prevent automatic redirect handling
-      });
-      
-      console.log('Logout: Signout API response status:', response.status);
-      
-      // Add a small delay to ensure server-side processing completes
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Manually redirect to login page after successful signout
-      console.log('Logout: Redirecting to login page');
-      
-      // Force redirect using multiple methods
+      // Create and submit a form for logout (more reliable than fetch + redirect)
       if (typeof window !== 'undefined') {
-        console.log('Logout: Attempting redirect...');
+        console.log('Logout: Creating form submission');
         
-        // Method 1: Direct assignment
-        window.location.href = '/auth/login';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/auth/signout';
+        form.style.display = 'none';
         
-        // Method 2: Replace (backup)
-        setTimeout(() => {
-          if (window.location.href.includes('/dashboard')) {
-            console.log('Logout: Still on dashboard, trying replace method');
-            window.location.replace('/auth/login');
-          }
-        }, 100);
+        document.body.appendChild(form);
+        form.submit();
         
-        // Method 3: Force reload (last resort)
-        setTimeout(() => {
-          if (window.location.href.includes('/dashboard')) {
-            console.log('Logout: Still on dashboard, forcing reload');
-            window.location.reload();
-          }
-        }, 200);
+        console.log('Logout: Form submitted');
       }
     } catch (error) {
       console.error('Logout error:', error);

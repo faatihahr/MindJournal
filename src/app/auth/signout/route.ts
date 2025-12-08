@@ -29,8 +29,8 @@ export async function POST() {
       console.log('Signout: No active session found - user already signed out');
     }
     
-    // Create a response with all cookies cleared
-    const response = NextResponse.json({ success: true, message: 'Signed out successfully' });
+    // Create a redirect response to login page
+    const response = NextResponse.redirect(new URL('/auth/login', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
     
     // Get the current domain for cookie clearing
     const request = await import('next/headers').then(mod => mod.headers());
@@ -102,11 +102,12 @@ export async function POST() {
       }
     });
     
-    console.log('Signout: Server-side signout completed');
+    console.log('Signout: Server-side signout completed, redirecting to login');
     
     return response;
   } catch (error) {
     console.error('Signout server error:', error);
-    return NextResponse.json({ success: true, message: 'Signout completed with errors' });
+    // Even if there's an error, still redirect to login
+    return NextResponse.redirect(new URL('/auth/login', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
   }
 }
