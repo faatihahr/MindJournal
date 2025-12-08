@@ -250,13 +250,37 @@ export default function Dashboard() {
       
       // Manually redirect to login page after successful signout
       console.log('Logout: Redirecting to login page');
-      // Use window.location for hard redirect to ensure fresh state
-      window.location.replace('/auth/login');
+      
+      // Force redirect using multiple methods
+      if (typeof window !== 'undefined') {
+        console.log('Logout: Attempting redirect...');
+        
+        // Method 1: Direct assignment
+        window.location.href = '/auth/login';
+        
+        // Method 2: Replace (backup)
+        setTimeout(() => {
+          if (window.location.href.includes('/dashboard')) {
+            console.log('Logout: Still on dashboard, trying replace method');
+            window.location.replace('/auth/login');
+          }
+        }, 100);
+        
+        // Method 3: Force reload (last resort)
+        setTimeout(() => {
+          if (window.location.href.includes('/dashboard')) {
+            console.log('Logout: Still on dashboard, forcing reload');
+            window.location.reload();
+          }
+        }, 200);
+      }
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: redirect to login page directly
       console.log('Logout: Error occurred, fallback redirect to login');
-      window.location.replace('/auth/login');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login';
+      }
     }
   };
 
