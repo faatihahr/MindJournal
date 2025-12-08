@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+export const dynamic = 'force-dynamic';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { FiBook, FiMoon, FiSun } from 'react-icons/fi';

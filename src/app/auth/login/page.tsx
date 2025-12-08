@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+export const dynamic = 'force-dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { login } from './actions';
 import { FiBook, FiMoon, FiSun } from 'react-icons/fi';
