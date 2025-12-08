@@ -30,14 +30,16 @@ export async function POST() {
     }
     
     // Create a redirect response to login page
-    const response = NextResponse.redirect(new URL('/auth/login', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
-    
-    // Get the current domain for cookie clearing
     const request = await import('next/headers').then(mod => mod.headers());
     const host = request.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    
+    const response = NextResponse.redirect(new URL('/auth/login', baseUrl));
+    
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
     
-    console.log(`Signout: Clearing cookies for domain: ${host}`);
+    console.log(`Signout: Clearing cookies for domain: ${host}, redirecting to: ${baseUrl}/auth/login`);
     
     // Clear ALL possible Supabase auth cookies with different variations
     const cookiesToClear = [
@@ -107,7 +109,12 @@ export async function POST() {
     return response;
   } catch (error) {
     console.error('Signout server error:', error);
-    // Even if there's an error, still redirect to login
-    return NextResponse.redirect(new URL('/auth/login', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
+    // Even if there's an error, still redirect to login with current host
+    const request = await import('next/headers').then(mod => mod.headers());
+    const host = request.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    
+    return NextResponse.redirect(new URL('/auth/login', baseUrl));
   }
 }
