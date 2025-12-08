@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { NextRequest } from 'next/server';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     console.log('Signout: Starting server-side signout process');
     
@@ -30,8 +31,8 @@ export async function POST() {
     }
     
     // Create a redirect response to login page
-    const request = await import('next/headers').then(mod => mod.headers());
-    const host = request.get('host') || '';
+    const headers = request.headers;
+    const host = headers.get('host') || '';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
     
@@ -110,8 +111,8 @@ export async function POST() {
   } catch (error) {
     console.error('Signout server error:', error);
     // Even if there's an error, still redirect to login with current host
-    const request = await import('next/headers').then(mod => mod.headers());
-    const host = request.get('host') || '';
+    const headers = request.headers;
+    const host = headers.get('host') || '';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
     

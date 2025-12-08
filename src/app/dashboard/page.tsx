@@ -234,19 +234,10 @@ export default function Dashboard() {
       
       console.log('Logout: Client storage cleared');
       
-      // Create and submit a form for logout (more reliable than fetch + redirect)
+      // Redirect to signout page (more reliable than form submission)
       if (typeof window !== 'undefined') {
-        console.log('Logout: Creating form submission');
-        
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/auth/signout';
-        form.style.display = 'none';
-        
-        document.body.appendChild(form);
-        form.submit();
-        
-        console.log('Logout: Form submitted');
+        console.log('Logout: Redirecting to signout page');
+        window.location.href = '/auth/signout';
       }
     } catch (error) {
       console.error('Logout error:', error);
