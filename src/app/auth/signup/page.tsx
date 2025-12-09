@@ -54,7 +54,7 @@ export default function SignUp() {
         ? `${window.location.origin}/auth/callback`
         : process.env.NEXT_PUBLIC_SITE_URL 
           ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-          : undefined;
+          : 'https://smartmindjournals.vercel.app/auth/callback';
 
       const { error } = await supabase.auth.signUp({
         email,
