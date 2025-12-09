@@ -19,21 +19,37 @@ export default function AuthCallback() {
 
       if (code) {
         try {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          // Use getUser instead of exchangeCodeForSession to let Supabase handle PKCE internally
+          const { data, error } = await supabase.auth.getUser()
           
-          console.log('Client-side auth callback: Result', { 
+          console.log('Client-side auth callback: getUser result', { 
             hasData: !!data, 
             error: error?.message,
-            session: !!data.session 
+            user: !!data.user 
           })
           
-          if (!error && data.session) {
+          if (!error && data.user) {
             console.log('Client-side auth callback: Success, redirecting to dashboard')
             router.push(next)
             return
           } else {
-            console.log('Client-side auth callback: Exchange failed', error)
-            setError(error?.message || 'Unknown error')
+            // If getUser fails, try to get session
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+            
+            console.log('Client-side auth callback: getSession result', { 
+              hasData: !!sessionData, 
+              error: sessionError?.message,
+              session: !!sessionData.session 
+            })
+            
+            if (!sessionError && sessionData.session) {
+              console.log('Client-side auth callback: Session success, redirecting to dashboard')
+              router.push(next)
+              return
+            } else {
+              console.log('Client-side auth callback: Both failed', error || sessionError)
+              setError(error?.message || sessionError?.message || 'Authentication failed')
+            }
           }
         } catch (err) {
           console.error('Client-side auth callback: Exception', err)
