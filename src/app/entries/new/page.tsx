@@ -623,7 +623,34 @@ export default function NewEntry() {
             <div className="relative">
               <div className="flex flex-col space-y-3">
                 {/* Template Button */}
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={toggleRecording}
+                    disabled={!recognitionRef.current}
+                    className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 hover:scale-105 ${
+                      isRecording
+                        ? "bg-red-500/20 text-red-600 hover:bg-red-500/30"
+                        : recognitionRef.current
+                          ? isDarkMode
+                            ? "bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
+                            : "bg-purple-100 text-purple-600 hover:bg-purple-200"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                    title={recognitionRef.current ? "Start voice recording" : "Speech recognition not supported"}
+                  >
+                    {isRecording ? (
+                      <>
+                        <FiMicOff className="text-base" />
+                        <span>Stop Recording</span>
+                      </>
+                    ) : (
+                      <>
+                        <FiMic className="text-base" />
+                        <span>Voice Input</span>
+                      </>
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowTemplatePicker(true)}
@@ -778,6 +805,27 @@ export default function NewEntry() {
               : "border-gray-200"
           }`}>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              {/* Language Selector */}
+              <div className="flex items-center space-x-2">
+                <label htmlFor="language" className={`text-sm font-medium ${
+                  isDarkMode ? "text-gray-300" : "text-gray-600"
+                }`}>
+                  Language:
+                </label>
+                <select
+                  id="language"
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className={`px-3 py-2 text-sm rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                    isDarkMode
+                      ? "bg-slate-700 border-slate-600 text-white"
+                      : "bg-white border-gray-300 text-gray-900"
+                  }`}
+                >
+                  <option value="id-ID">Bahasa Indonesia</option>
+                  <option value="en-US">English</option>
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={() => router.push('/dashboard')}
