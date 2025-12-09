@@ -50,9 +50,18 @@ export default function SignUp() {
     setError(null);
 
     try {
+      const redirectTo = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/callback`
+        : process.env.NEXT_PUBLIC_SITE_URL 
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+          : undefined;
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
       });
 
       if (error) throw error;

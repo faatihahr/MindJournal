@@ -36,12 +36,24 @@ export function DateEntriesModal({ isOpen, onClose, date, entries, isDarkMode }:
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`w-full max-w-2xl max-h-[80vh] rounded-2xl backdrop-blur-sm border overflow-hidden ${
-        isDarkMode 
-          ? "bg-slate-800 border-slate-700" 
-          : "bg-white border-gray-200"
-      }`}>
+    <div className="fixed inset-0 z-50 p-4 overflow-y-auto">
+      {/* Enhanced backdrop with gradient and blur - covers entire scrollable area */}
+      <div className="fixed inset-0 bg-linear-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 backdrop-blur-md" />
+      
+      {/* Animated background patterns - fixed position */}
+      <div className="fixed inset-0 opacity-30">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse animation-delay-4000" />
+      </div>
+      
+      {/* Content container */}
+      <div className="relative z-10 w-full max-w-2xl mx-auto mt-8 min-h-screen flex items-center justify-center">
+        <div className={`w-full max-h-[80vh] rounded-2xl backdrop-blur-xl border-2 shadow-2xl transition-all duration-300 ${
+          isDarkMode 
+            ? 'bg-slate-800/40 border-purple-500/30 shadow-purple-500/20' 
+            : 'bg-white/60 border-purple-300/50 shadow-purple-300/30'
+        }`}>
         {/* Header */}
         <div className={`p-6 border-b flex items-center justify-between ${
           isDarkMode ? "border-slate-700" : "border-gray-200"
@@ -160,6 +172,7 @@ export function DateEntriesModal({ isOpen, onClose, date, entries, isDarkMode }:
             </div>
           )}
         </div>
+        </div> {/* Close modal container */}
       </div>
     </div>
   );

@@ -765,7 +765,7 @@ export default function Dashboard() {
               className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
                 isDarkMode 
                   ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
-                  : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+                  : "bg-gray-50 border-gray-200 text-gray-900 hover:bg-gray-100"
               } ${showCalendar ? 'ring-2 ring-purple-500' : ''}`}
             >
               <FiCalendar className={`text-lg mb-1 mx-auto ${
@@ -779,7 +779,7 @@ export default function Dashboard() {
               className={`p-3 rounded-xl border transition-all duration-200 hover:scale-105 ${
                 isDarkMode 
                   ? "bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50" 
-                  : "bg-white/70 border-gray-200 text-gray-900 hover:bg-gray-50"
+                  : "bg-gray-50 border-gray-200 text-gray-900 hover:bg-gray-100"
               }`}
             >
               <FiTrendingUp className={`text-lg mb-1 mx-auto ${
@@ -806,7 +806,7 @@ export default function Dashboard() {
         <div className="md:hidden mb-6">
           <div className="grid grid-cols-3 gap-3">
             <div className={`p-3 rounded-xl ${
-              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+              isDarkMode ? "bg-slate-800/50" : "bg-gray-50"
             }`}>
               <p className={`text-xs font-medium mb-1 ${
                 isDarkMode ? "text-gray-400" : "text-gray-600"
@@ -821,7 +821,7 @@ export default function Dashboard() {
             </div>
 
             <div className={`p-3 rounded-xl ${
-              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+              isDarkMode ? "bg-slate-800/50" : "bg-gray-50"
             }`}>
               <p className={`text-xs font-medium mb-1 ${
                 isDarkMode ? "text-gray-400" : "text-gray-600"
@@ -836,7 +836,7 @@ export default function Dashboard() {
             </div>
 
             <div className={`p-3 rounded-xl ${
-              isDarkMode ? "bg-slate-800/50" : "bg-white/70"
+              isDarkMode ? "bg-slate-800/50" : "bg-gray-50"
             }`}>
               <p className={`text-xs font-medium mb-1 ${
                 isDarkMode ? "text-gray-400" : "text-gray-600"
@@ -858,7 +858,7 @@ export default function Dashboard() {
           <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
             isDarkMode 
               ? "bg-slate-800/50 border-slate-700" 
-              : "bg-white/70 border-gray-200"
+              : "bg-gray-50 border-gray-200"
           }`}>
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
@@ -883,7 +883,7 @@ export default function Dashboard() {
           <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
             isDarkMode 
               ? "bg-slate-800/50 border-slate-700" 
-              : "bg-white/70 border-gray-200"
+              : "bg-gray-50 border-gray-200"
           }`}>
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
@@ -912,7 +912,7 @@ export default function Dashboard() {
           <div className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
             isDarkMode 
               ? "bg-slate-800/50 border-slate-700" 
-              : "bg-white/70 border-gray-200"
+              : "bg-gray-50 border-gray-200"
           }`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
@@ -937,7 +937,7 @@ export default function Dashboard() {
             className={`p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 cursor-pointer block ${
               isDarkMode 
                 ? "bg-slate-800/50 border-slate-700 hover:bg-slate-800/70" 
-                : "bg-white/70 border-gray-200 hover:bg-white/90"
+                : "bg-gray-50 border-gray-200 hover:bg-gray-100"
             }`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
@@ -1005,7 +1005,7 @@ export default function Dashboard() {
           <div className={`mb-8 p-6 rounded-2xl backdrop-blur-sm border ${
             isDarkMode 
               ? "bg-slate-800/50 border-slate-700" 
-              : "bg-white/70 border-gray-200"
+              : "bg-gray-50 border-gray-200"
           }`}>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Mood Filter */}
@@ -1276,7 +1276,7 @@ export default function Dashboard() {
                 <div className={`mb-4 p-4 rounded-xl border ${
                   isDarkMode 
                     ? "bg-slate-800/50 border-slate-700" 
-                    : "bg-white/70 border-gray-200"
+                    : "bg-gray-50 border-gray-200"
                 }`}>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-3 sm:space-y-0">
                     <div className="flex items-center space-x-3">

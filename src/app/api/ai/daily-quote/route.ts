@@ -108,8 +108,51 @@ Recent journal entries to analyze:
       generatedAt: new Date().toISOString()
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating daily quote:', error);
+    
+    // Handle quota exceeded error with fallback
+    if (error.status === 429 || (error.message && error.message.includes('quota'))) {
+      console.log('AI quota exceeded, using fallback daily quote');
+      
+      const today = new Date().toISOString().split('T')[0];
+      const fallbackQuotes = [
+        {
+          quote: "Every day is a new opportunity to grow and learn from your experiences.",
+          author: "AI Personalized",
+          theme: "growth",
+          relevance: "Based on your journey of self-reflection"
+        },
+        {
+          quote: "Your journal is a testament to your strength and resilience. Keep going!",
+          author: "AI Personalized", 
+          theme: "perseverance",
+          relevance: "Inspired by your consistent writing habit"
+        },
+        {
+          quote: "The moments you capture today become the wisdom of tomorrow.",
+          author: "AI Personalized",
+          theme: "reflection", 
+          relevance: "Celebrating your commitment to self-awareness"
+        }
+      ];
+      
+      // Use date to select consistent fallback quote
+      const quoteIndex = today.charCodeAt(today.length - 1) % fallbackQuotes.length;
+      const selectedQuote = fallbackQuotes[quoteIndex];
+      
+      return NextResponse.json({
+        quote: selectedQuote.quote,
+        author: selectedQuote.author,
+        theme: selectedQuote.theme,
+        relevance: selectedQuote.relevance,
+        date: today,
+        entriesAnalyzed: 0,
+        generatedAt: new Date().toISOString(),
+        fallback: true
+      });
+    }
+    
     return NextResponse.json(
       { error: 'Failed to generate quote' },
       { status: 500 }
